@@ -1,0 +1,113 @@
+name: Personal Build
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 11
+      uses: actions/setup-java@v4
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      
+    - name: Create local.properties
+      run: |
+        echo "sdk.dir=$ANDROID_HOME" > local.properties
+        cat local.properties
+        
+    - name: Cache Gradle packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+          
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+      
+    - name: Check Java version
+      run: |
+        java -version
+        echo "JAVA_HOME: $JAVA_HOME"
+        
+    - name: Check Android SDK
+      run: |
+        echo "ANDROID_HOME: $ANDROID_HOME"
+        echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
+      
+    - name: Build Debug APK
+      run: |
+        echo "Starting Gradle build with debug output..."
+        ./gradlew assembleDebug --stacktrace --debug --no-daemon
+      
+    - name: Build Release APK (unsigned)
+      if: startsWith(github.ref, 'refs/tags/')
+      run: ./gradlew assembleRelease
+      
+    - name: Upload Debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: debug-apk
+        path: app/build/outputs/apk/debug/*.apk
+        
+    - name: Upload Release APK
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-apk-unsigned
+        path: app/build/outputs/apk/release/*.apk
+        
+    - name: Create Release with APK
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          app/build/outputs/apk/debug/*.apk
+          app/build/outputs/apk/release/*.apk
+        body: |
+          ## 🎉 DailyNotes 个人版本发布
+          
+          ### 📦 文件说明
+          - **debug.apk**: 调试版本，包含调试信息
+          - **release-unsigned.apk**: 发布版本，未签名但经过优化
+          
+          ### 📱 安装方法
+          1. 下载APK文件到Android设备
+          2. 设置 → 安全 → 允许安装未知来源应用
+          3. 点击APK文件安装
+          
+          ### ⚠️ 注意事项
+          - 这是个人使用版本，未经过应用商店签名
+          - 如果之前安装过其他版本，可能需要先卸载
+          - 建议使用release版本以获得更好性能
+          
+          ### ✨ 功能特性
+          - ✅ 文字记录与编辑
+          - ✅ 图片添加（拍照/相册）
+          - ✅ 音频录制与播放  
+          - ✅ 分类管理
+          - ✅ 全文搜索
+          - ✅ 数据导出导入
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

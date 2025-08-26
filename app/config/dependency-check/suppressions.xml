@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+    <!-- Suppress known false positives -->
+    <suppress>
+        <notes>This suppresses false positives for Android SDK dependencies</notes>
+        <cpe>cpe:/a:google:android</cpe>
+    </suppress>
+    <suppress>
+        <notes>Suppress Kotlin standard library false positives</notes>
+        <cpe>cpe:/a:jetbrains:kotlin</cpe>
+    </suppress>
+</suppressions>

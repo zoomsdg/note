@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">日记本</string>
+    <string name="add_note">添加记事</string>
+    <string name="edit_note">编辑记事</string>
+    <string name="delete_note">删除记事</string>
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
+    <string name="search">搜索</string>
+    <string name="export">导出</string>
+    <string name="import_notes">导入</string>
+    <string name="title">标题</string>
+    <string name="content">内容</string>
+    <string name="add_image">添加图片</string>
+    <string name="add_audio">添加音频</string>
+    <string name="record_audio">录制音频</string>
+    <string name="play_audio">播放音频</string>
+    <string name="pause_audio">暂停音频</string>
+    <string name="stop_recording">停止录制</string>
+    <string name="delete">删除</string>
+    <string name="confirm_delete">确认删除这条记事吗？</string>
+    <string name="export_success">导出成功</string>
+    <string name="import_success">导入成功</string>
+    <string name="permission_required">需要权限</string>
+    <string name="camera_permission">相机权限</string>
+    <string name="audio_permission">录音权限</string>
+    <string name="storage_permission">存储权限</string>
+    <string name="no_notes">还没有记事，点击添加按钮创建第一条记事吧！</string>
+    <string name="category">分类</string>
+    <string name="all_categories">所有分类</string>
+    <string name="daily">日常</string>
+    <string name="work">工作</string>
+    <string name="travel">旅行</string>
+    <string name="mood">心情</string>
+    <string name="other">其他</string>
+</resources>

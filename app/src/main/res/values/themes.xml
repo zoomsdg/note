@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 最简主题配置 - 只使用系统默认 -->
+    <style name="Theme.DailyNotes" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <!-- 无自定义属性 -->
+    </style>
+</resources>
