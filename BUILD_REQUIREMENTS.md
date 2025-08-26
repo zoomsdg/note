@@ -17,19 +17,23 @@
 
 ### Gradle
 - **版本**: 8.2 (通过 gradle-wrapper.properties)
-- **AGP版本**: 8.1.2
+- **AGP版本**: 8.1.2 (Android Gradle Plugin)
 - **内存设置**: `-Xmx4g -XX:MaxMetaspaceSize=1g`
+- **分发URL**: https://services.gradle.org/distributions/gradle-8.2-bin.zip
 
 ### Kotlin
 - **版本**: 1.8.10
-- **JVM目标**: 1.8
-- **编译器扩展**: 1.4.3 (Compose)
+- **JVM目标**: 17 (Java 17兼容)
+- **Compose编译器扩展**: 1.4.3
 
-### 依赖版本
+### 核心依赖版本
 - **Compose BOM**: 2023.03.00
-- **Hilt**: 2.44
-- **Room**: 2.5.0
-- **Material**: 1.10.0
+- **Hilt**: 2.44 (依赖注入)
+- **Room**: 2.5.0 (数据库)
+- **Navigation Compose**: 2.7.4
+- **Coil**: 2.4.0 (图片加载)
+- **GSON**: 2.10.1 (JSON序列化)
+- **Accompanist**: 0.32.0 (权限处理)
 
 ## CI/CD 环境 (GitHub Actions)
 
