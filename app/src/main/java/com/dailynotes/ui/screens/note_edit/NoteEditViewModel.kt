@@ -19,6 +19,9 @@ class NoteEditViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(NoteEditUiState())
     val uiState = _uiState.asStateFlow()
+    
+    private val _categories = MutableStateFlow<List<String>>(emptyList())
+    val categories = _categories.asStateFlow()
 
     fun loadNote(noteId: Long) {
         if (noteId != -1L) {
@@ -32,6 +35,16 @@ class NoteEditViewModel @Inject constructor(
                         mediaItems = note.mediaItems
                     )
                 }
+            }
+        }
+    }
+    
+    fun loadCategories() {
+        viewModelScope.launch {
+            repository.getAllCategories().collect { categories ->
+                val defaultCategories = listOf("日常", "工作", "旅行", "心情", "其他")
+                val allCategories = (defaultCategories + categories).distinct()
+                _categories.value = allCategories
             }
         }
     }

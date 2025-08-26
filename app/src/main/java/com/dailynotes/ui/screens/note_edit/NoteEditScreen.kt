@@ -32,6 +32,9 @@ fun NoteEditScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val categories by viewModel.categories.collectAsState()
+    var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var newCategoryText by remember { mutableStateOf("") }
     
     // 图片选择器
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -64,9 +67,9 @@ fun NoteEditScreen(
     
     LaunchedEffect(noteId) {
         viewModel.loadNote(noteId)
+        viewModel.loadCategories()
     }
     
-    val categories = listOf("日常", "工作", "旅行", "心情", "其他")
     
     Scaffold(
         topBar = {
@@ -128,6 +131,17 @@ fun NoteEditScreen(
                         selected = uiState.category == category
                     )
                 }
+                
+                item {
+                    FilterChip(
+                        onClick = { 
+                            showAddCategoryDialog = true
+                            newCategoryText = ""
+                        },
+                        label = { Text("添加新分类") },
+                        selected = false
+                    )
+                }
             }
             
             // 内容输入
@@ -165,5 +179,40 @@ fun NoteEditScreen(
                 )
             }
         }
+    }
+    
+    // 添加新分类对话框
+    if (showAddCategoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddCategoryDialog = false },
+            title = { Text("添加新分类") },
+            text = {
+                OutlinedTextField(
+                    value = newCategoryText,
+                    onValueChange = { newCategoryText = it },
+                    label = { Text("分类名称") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (newCategoryText.isNotBlank()) {
+                            viewModel.updateCategory(newCategoryText.trim())
+                            showAddCategoryDialog = false
+                        }
+                    },
+                    enabled = newCategoryText.isNotBlank()
+                ) {
+                    Text("确定")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddCategoryDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
