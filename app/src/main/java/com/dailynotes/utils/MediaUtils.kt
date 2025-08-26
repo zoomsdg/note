@@ -52,6 +52,19 @@ object MediaUtils {
         }
     }
     
+    fun copyAudioFromUri(context: Context, uri: Uri, targetFile: File): Boolean {
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                targetFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+    
     fun formatDuration(milliseconds: Long): String {
         val seconds = milliseconds / 1000
         val minutes = seconds / 60

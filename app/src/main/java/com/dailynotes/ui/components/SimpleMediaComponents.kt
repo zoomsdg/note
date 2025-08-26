@@ -37,7 +37,7 @@ fun MediaControls(
             onClick = onAudioClick,
             modifier = Modifier.weight(1f)
         ) {
-            Text("录制音频")
+            Text("选择音频")
         }
     }
 }

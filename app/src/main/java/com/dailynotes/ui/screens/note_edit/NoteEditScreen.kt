@@ -47,6 +47,21 @@ fun NoteEditScreen(
         }
     }
     
+    // 音频选择器
+    val audioPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            // 将选中的音频复制到应用私有目录
+            val audioFile = MediaUtils.createAudioFile(context, "audio_${System.currentTimeMillis()}")
+            if (MediaUtils.copyAudioFromUri(context, uri, audioFile)) {
+                val duration = MediaUtils.getAudioDuration(audioFile.absolutePath)
+                val mediaItem = MediaItem(type = MediaType.AUDIO, path = audioFile.absolutePath, duration = duration)
+                viewModel.addMediaItem(mediaItem)
+            }
+        }
+    }
+    
     LaunchedEffect(noteId) {
         viewModel.loadNote(noteId)
     }
@@ -63,14 +78,16 @@ fun NoteEditScreen(
                     ) 
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = { 
+                        viewModel.saveAndExit(onNavigateBack)
+                    }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
                     IconButton(
                         onClick = { 
-                            viewModel.saveNote(onNavigateBack)
+                            viewModel.saveAndExit(onNavigateBack)
                         }
                     ) {
                         Icon(Icons.Default.Done, contentDescription = "保存")
@@ -130,10 +147,8 @@ fun NoteEditScreen(
                     imagePickerLauncher.launch("image/*")
                 },
                 onAudioClick = {
-                    // 简化的音频录制 - 创建模拟音频文件
-                    val audioFile = MediaUtils.createAudioFile(context, "audio_${System.currentTimeMillis()}")
-                    val mediaItem = MediaItem(type = MediaType.AUDIO, path = audioFile.absolutePath, duration = 30000L)
-                    viewModel.addMediaItem(mediaItem)
+                    // 打开音频选择器
+                    audioPickerLauncher.launch("audio/*")
                 }
             )
             

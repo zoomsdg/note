@@ -60,6 +60,13 @@ class NoteListViewModel @Inject constructor(
     
     private val _importResult = MutableStateFlow<ImportResult?>(null)
     val importResult = _importResult.asStateFlow()
+    
+    // 批量删除状态
+    private val _isSelectionMode = MutableStateFlow(false)
+    val isSelectionMode = _isSelectionMode.asStateFlow()
+    
+    private val _selectedNotes = MutableStateFlow<Set<Long>>(emptySet())
+    val selectedNotes = _selectedNotes.asStateFlow()
 
     fun deleteNote(note: NoteEntity) {
         viewModelScope.launch {
@@ -95,4 +102,48 @@ class NoteListViewModel @Inject constructor(
     fun clearImportResult() {
         _importResult.value = null
     }
+    
+    // 批量删除相关方法
+    fun enterSelectionMode() {
+        _isSelectionMode.value = true
+        _selectedNotes.value = emptySet()
+    }
+    
+    fun exitSelectionMode() {
+        _isSelectionMode.value = false
+        _selectedNotes.value = emptySet()
+    }
+    
+    fun toggleNoteSelection(noteId: Long) {
+        val currentSelection = _selectedNotes.value.toMutableSet()
+        if (currentSelection.contains(noteId)) {
+            currentSelection.remove(noteId)
+        } else {
+            currentSelection.add(noteId)
+        }
+        _selectedNotes.value = currentSelection
+    }
+    
+    fun selectAllNotes() {
+        viewModelScope.launch {
+            val allNotes = notes.value
+            _selectedNotes.value = allNotes.map { it.id }.toSet()
+        }
+    }
+    
+    fun deleteSelectedNotes() {
+        viewModelScope.launch {
+            val selectedIds = _selectedNotes.value
+            val allNotes = notes.value
+            val notesToDelete = allNotes.filter { selectedIds.contains(it.id) }
+            
+            notesToDelete.forEach { note ->
+                repository.deleteNote(note)
+            }
+            
+            exitSelectionMode()
+        }
+    }
+    
+    fun getSelectedCount(): Int = _selectedNotes.value.size
 }

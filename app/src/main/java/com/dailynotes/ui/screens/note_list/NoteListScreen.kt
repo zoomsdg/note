@@ -10,7 +10,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,6 +42,8 @@ fun NoteListScreen(
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val exportResult by viewModel.exportResult.collectAsState()
     val importResult by viewModel.importResult.collectAsState()
+    val isSelectionMode by viewModel.isSelectionMode.collectAsState()
+    val selectedNotes by viewModel.selectedNotes.collectAsState()
     
     var showMenu by remember { mutableStateOf(false) }
     
@@ -58,33 +64,72 @@ fun NoteListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("日记本") },
+                title = { 
+                    if (isSelectionMode) {
+                        Text("已选择 ${selectedNotes.size} 项")
+                    } else {
+                        Text("日记本")
+                    }
+                },
+                navigationIcon = {
+                    if (isSelectionMode) {
+                        IconButton(onClick = { viewModel.exitSelectionMode() }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "取消选择")
+                        }
+                    }
+                },
                 actions = {
-                    Box {
-                        IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "菜单")
+                    if (isSelectionMode) {
+                        // 批量删除模式的操作按钮
+                        if (selectedNotes.isNotEmpty()) {
+                            IconButton(
+                                onClick = { 
+                                    viewModel.deleteSelectedNotes()
+                                }
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = "删除选中")
+                            }
                         }
                         
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("导出数据") },
-                                onClick = {
-                                    showMenu = false
-                                    val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault())
-                                    val fileName = "日记本备份_${dateFormat.format(java.util.Date())}.zip"
-                                    exportLauncher.launch(fileName)
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("导入数据") },
-                                onClick = {
-                                    showMenu = false
-                                    importLauncher.launch("application/zip")
-                                }
-                            )
+                        IconButton(onClick = { viewModel.selectAllNotes() }) {
+                            Icon(Icons.Default.Check, contentDescription = "全选")
+                        }
+                    } else {
+                        // 正常模式的菜单
+                        Box {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "菜单")
+                            }
+                            
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("批量删除") },
+                                    onClick = {
+                                        showMenu = false
+                                        viewModel.enterSelectionMode()
+                                    }
+                                )
+                                Divider()
+                                DropdownMenuItem(
+                                    text = { Text("导出数据") },
+                                    onClick = {
+                                        showMenu = false
+                                        val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault())
+                                        val fileName = "日记本备份_${dateFormat.format(java.util.Date())}.zip"
+                                        exportLauncher.launch(fileName)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("导入数据") },
+                                    onClick = {
+                                        showMenu = false
+                                        importLauncher.launch("application/zip")
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -150,8 +195,17 @@ fun NoteListScreen(
                     items(notes) { note ->
                         NoteCard(
                             note = note,
-                            onClick = { onNavigateToEdit(note.id) },
-                            onDelete = { viewModel.deleteNote(note) }
+                            isSelectionMode = isSelectionMode,
+                            isSelected = selectedNotes.contains(note.id),
+                            onClick = { 
+                                if (isSelectionMode) {
+                                    viewModel.toggleNoteSelection(note.id)
+                                } else {
+                                    onNavigateToEdit(note.id)
+                                }
+                            },
+                            onDelete = { viewModel.deleteNote(note) },
+                            onSelectionToggle = { viewModel.toggleNoteSelection(note.id) }
                         )
                     }
                 }
@@ -224,8 +278,11 @@ fun NoteListScreen(
 @Composable
 private fun NoteCard(
     note: NoteEntity,
+    isSelectionMode: Boolean,
+    isSelected: Boolean,
     onClick: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onSelectionToggle: () -> Unit
 ) {
     val dateFormatter = SimpleDateFormat("MM/dd HH:mm", Locale.getDefault())
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -235,8 +292,19 @@ private fun NoteCard(
             .fillMaxWidth()
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = { showDeleteDialog = true }
+                onLongClick = { 
+                    if (!isSelectionMode) {
+                        showDeleteDialog = true 
+                    }
+                }
+            ),
+        colors = if (isSelected) {
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
             )
+        } else {
+            CardDefaults.cardColors()
+        }
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -246,6 +314,15 @@ private fun NoteCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
+                // 选择指示器
+                if (isSelectionMode) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = { onSelectionToggle() },
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
+                
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = note.title.ifEmpty { "无标题" },

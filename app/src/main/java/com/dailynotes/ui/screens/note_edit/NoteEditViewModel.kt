@@ -67,7 +67,7 @@ class NoteEditViewModel @Inject constructor(
         }
     }
     
-    fun saveNote(onSaved: () -> Unit) {
+    fun saveNote(onSaved: (() -> Unit)? = null) {
         viewModelScope.launch {
             val state = _uiState.value
             val note = if (state.noteId == -1L) {
@@ -94,8 +94,12 @@ class NoteEditViewModel @Inject constructor(
             } else {
                 repository.updateNote(note)
             }
-            onSaved()
+            onSaved?.invoke()
         }
+    }
+    
+    fun saveAndExit(onNavigateBack: () -> Unit) {
+        saveNote(onNavigateBack)
     }
 }
 
