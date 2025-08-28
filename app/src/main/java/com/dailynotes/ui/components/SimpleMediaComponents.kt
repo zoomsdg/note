@@ -13,9 +13,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
+import com.dailynotes.utils.AudioPlayerManager
 import java.io.File
 
 @Composable
@@ -53,6 +55,7 @@ fun SimpleMediaDisplay(
     modifier: Modifier = Modifier
 ) {
     var showImageDialog by remember { mutableStateOf<String?>(null) }
+    var currentPlayingAudio by remember { mutableStateOf<String?>(null) }
     
     if (mediaItems.isNotEmpty()) {
         LazyRow(
@@ -72,7 +75,11 @@ fun SimpleMediaDisplay(
                     com.dailynotes.data.MediaType.AUDIO -> {
                         AudioCard(
                             mediaItem = mediaItem,
-                            onDelete = { onDeleteItem(mediaItem) }
+                            onDelete = { onDeleteItem(mediaItem) },
+                            isCurrentlyPlaying = currentPlayingAudio == mediaItem.path,
+                            onPlaybackStateChange = { playing, path ->
+                                currentPlayingAudio = if (playing) path else null
+                            }
                         )
                     }
                 }
@@ -128,9 +135,12 @@ private fun ImageCard(
 private fun AudioCard(
     mediaItem: com.dailynotes.data.MediaItem,
     onDelete: () -> Unit,
+    isCurrentlyPlaying: Boolean,
+    onPlaybackStateChange: (Boolean, String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var isPlaying by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val audioPlayerManager = remember { AudioPlayerManager.getInstance(context) }
     
     Card(
         modifier = modifier.width(200.dp)
@@ -172,11 +182,12 @@ private fun AudioCard(
             ) {
                 IconButton(
                     onClick = { 
-                        isPlaying = !isPlaying
-                        // TODO: 实际的播放逻辑
+                        audioPlayerManager.playAudio(mediaItem.path) { playing, path ->
+                            onPlaybackStateChange(playing, path)
+                        }
                     }
                 ) {
-                    if (isPlaying) {
+                    if (isCurrentlyPlaying) {
                         Text(
                             text = "⏸",
                             style = MaterialTheme.typography.headlineMedium
@@ -189,7 +200,7 @@ private fun AudioCard(
                     }
                 }
                 Text(
-                    text = if (isPlaying) "播放中..." else "点击播放",
+                    text = if (isCurrentlyPlaying) "播放中..." else "点击播放",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
