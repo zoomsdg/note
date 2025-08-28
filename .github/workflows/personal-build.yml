@@ -8,6 +8,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   build:
     name: Build APK
@@ -62,28 +66,36 @@ jobs:
       
     - name: Build Release APK (unsigned)
       if: startsWith(github.ref, 'refs/tags/')
-      run: ./gradlew assembleRelease
+      run: ./gradlew assembleRelease --stacktrace --no-daemon
       
+    - name: List generated APK files
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        echo "Listing all APK files:"
+        find app/build/outputs -name "*.apk" -type f -ls || echo "No APK files found"
+        echo "Directory structure:"
+        ls -la app/build/outputs/apk/ || echo "APK output directory not found"
+        
     - name: Upload Debug APK
       uses: actions/upload-artifact@v4
       with:
         name: debug-apk
-        path: app/build/outputs/apk/debug/*.apk
+        path: app/build/outputs/apk/debug/app-debug.apk
         
     - name: Upload Release APK
       if: startsWith(github.ref, 'refs/tags/')
       uses: actions/upload-artifact@v4
       with:
         name: release-apk-unsigned
-        path: app/build/outputs/apk/release/*.apk
+        path: app/build/outputs/apk/release/app-release-unsigned.apk
         
     - name: Create Release with APK
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          app/build/outputs/apk/debug/*.apk
-          app/build/outputs/apk/release/*.apk
+          app/build/outputs/apk/debug/app-debug.apk
+          app/build/outputs/apk/release/app-release-unsigned.apk
         body: |
           ## 🎉 DailyNotes 个人版本发布
           
