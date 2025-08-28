@@ -5,3 +5,6 @@ build/
 *.aab
 *.dex
 .DS_Store
+
+# 允许releases目录中的APK文件
+!/releases/*.apk
