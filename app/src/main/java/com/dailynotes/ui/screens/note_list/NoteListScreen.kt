@@ -3,6 +3,7 @@ package com.dailynotes.ui.screens.note_list
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.dailynotes.data.NoteEntity
@@ -46,19 +48,33 @@ fun NoteListScreen(
     val selectedNotes by viewModel.selectedNotes.collectAsState()
     
     var showMenu by remember { mutableStateOf(false) }
+    var showExportDialog by remember { mutableStateOf(false) }
+    var showImportDialog by remember { mutableStateOf(false) }
+    var showCustomExportDialog by remember { mutableStateOf(false) }
+    var exportSelectedOnly by remember { mutableStateOf(false) }
+    var importReplaceMode by remember { mutableStateOf(false) }
     
     // ZIP文件导入选择器
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri ->
-        uri?.let { viewModel.importNotes(it) }
+        uri?.let { 
+            viewModel.importNotes(it, importReplaceMode)
+        }
     }
     
     // 导出文件创建器
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
     ) { uri ->
-        uri?.let { viewModel.exportNotesToUserLocation(it) }
+        uri?.let { 
+            val selectedIds = if (exportSelectedOnly && isSelectionMode) {
+                selectedNotes.toList()
+            } else {
+                null
+            }
+            viewModel.exportNotesToUserLocation(it, selectedIds)
+        }
     }
     
     Scaffold(
@@ -117,16 +133,14 @@ fun NoteListScreen(
                                     text = { Text("导出数据") },
                                     onClick = {
                                         showMenu = false
-                                        val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault())
-                                        val fileName = "日记本备份_${dateFormat.format(java.util.Date())}.zip"
-                                        exportLauncher.launch(fileName)
+                                        showExportDialog = true
                                     }
                                 )
                                 DropdownMenuItem(
                                     text = { Text("导入数据") },
                                     onClick = {
                                         showMenu = false
-                                        importLauncher.launch("application/zip")
+                                        showImportDialog = true
                                     }
                                 )
                             }
@@ -250,7 +264,7 @@ fun NoteListScreen(
                 AlertDialog(
                     onDismissRequest = { viewModel.clearImportResult() },
                     title = { Text("导入成功") },
-                    text = { Text("成功导入 ${result.importedCount} 条记事") },
+                    text = { Text(result.message) },
                     confirmButton = {
                         TextButton(onClick = { viewModel.clearImportResult() }) {
                             Text("确定")
@@ -272,6 +286,255 @@ fun NoteListScreen(
             }
         }
     }
+    
+    // 导出选择对话框
+    if (showExportDialog) {
+        AlertDialog(
+            onDismissRequest = { showExportDialog = false },
+            title = { Text("选择导出方式") },
+            text = {
+                Column {
+                    Text("请选择要导出的内容：")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    if (isSelectionMode && selectedNotes.isNotEmpty()) {
+                        Text(
+                            "当前已选择 ${selectedNotes.size} 条记事",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Row {
+                    if (isSelectionMode && selectedNotes.isNotEmpty()) {
+                        TextButton(
+                            onClick = {
+                                showExportDialog = false
+                                exportSelectedOnly = true
+                                val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault())
+                                val fileName = "选中记事备份_${dateFormat.format(java.util.Date())}.zip"
+                                exportLauncher.launch(fileName)
+                            }
+                        ) {
+                            Text("导出选中")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    TextButton(
+                        onClick = {
+                            showExportDialog = false
+                            showCustomExportDialog = true
+                        }
+                    ) {
+                        Text("自定义选择")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(
+                        onClick = {
+                            showExportDialog = false
+                            exportSelectedOnly = false
+                            val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault())
+                            val fileName = "全部记事备份_${dateFormat.format(java.util.Date())}.zip"
+                            exportLauncher.launch(fileName)
+                        }
+                    ) {
+                        Text("导出全部")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExportDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+    
+    // 导入选择对话框
+    if (showImportDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportDialog = false },
+            title = { Text("选择导入方式") },
+            text = {
+                Column {
+                    Text("请选择导入方式：")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "• 追加导入：保留现有记事，添加新记事",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        "• 替换导入：删除现有记事，仅保留导入的记事",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                Row {
+                    TextButton(
+                        onClick = {
+                            showImportDialog = false
+                            importReplaceMode = false
+                            importLauncher.launch("application/zip")
+                        }
+                    ) {
+                        Text("追加导入")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(
+                        onClick = {
+                            showImportDialog = false
+                            importReplaceMode = true
+                            importLauncher.launch("application/zip")
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("替换导入")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+    
+    // 自定义导出选择对话框
+    if (showCustomExportDialog) {
+        CustomExportDialog(
+            notes = notes,
+            onDismiss = { showCustomExportDialog = false },
+            onExport = { selectedNoteIds ->
+                showCustomExportDialog = false
+                exportSelectedOnly = true
+                val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault())
+                val fileName = "自定义记事备份_${dateFormat.format(java.util.Date())}.zip"
+                // 设置要导出的记事ID
+                viewModel.setCustomExportIds(selectedNoteIds)
+                exportLauncher.launch(fileName)
+            }
+        )
+    }
+}
+
+@Composable
+private fun CustomExportDialog(
+    notes: List<NoteEntity>,
+    onDismiss: () -> Unit,
+    onExport: (List<Long>) -> Unit
+) {
+    var selectedNotes by remember { mutableStateOf(setOf<Long>()) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择要导出的记事") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "共 ${notes.size} 条记事，已选择 ${selectedNotes.size} 条",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    
+                    TextButton(
+                        onClick = {
+                            selectedNotes = if (selectedNotes.size == notes.size) {
+                                emptySet()
+                            } else {
+                                notes.map { it.id }.toSet()
+                            }
+                        }
+                    ) {
+                        Text(if (selectedNotes.size == notes.size) "取消全选" else "全选")
+                    }
+                }
+                
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                
+                LazyColumn {
+                    items(notes) { note ->
+                        val isSelected = selectedNotes.contains(note.id)
+                        
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedNotes = if (isSelected) {
+                                        selectedNotes - note.id
+                                    } else {
+                                        selectedNotes + note.id
+                                    }
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = isSelected,
+                                onCheckedChange = { checked ->
+                                    selectedNotes = if (checked) {
+                                        selectedNotes + note.id
+                                    } else {
+                                        selectedNotes - note.id
+                                    }
+                                }
+                            )
+                            
+                            Spacer(modifier = Modifier.width(12.dp))
+                            
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = note.title.ifEmpty { "无标题" },
+                                    style = MaterialTheme.typography.titleSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (note.content.isNotEmpty()) {
+                                    Text(
+                                        text = note.content,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Text(
+                                    text = SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()).format(note.updatedAt),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onExport(selectedNotes.toList()) },
+                enabled = selectedNotes.isNotEmpty()
+            ) {
+                Text("导出 (${selectedNotes.size})")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)

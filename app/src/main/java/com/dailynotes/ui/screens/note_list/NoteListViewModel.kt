@@ -67,6 +67,9 @@ class NoteListViewModel @Inject constructor(
     
     private val _selectedNotes = MutableStateFlow<Set<Long>>(emptySet())
     val selectedNotes = _selectedNotes.asStateFlow()
+    
+    private val _customExportIds = MutableStateFlow<List<Long>?>(null)
+    val customExportIds = _customExportIds.asStateFlow()
 
     fun deleteNote(note: NoteEntity) {
         viewModelScope.launch {
@@ -81,16 +84,24 @@ class NoteListViewModel @Inject constructor(
         }
     }
     
-    fun exportNotesToUserLocation(uri: Uri) {
+    fun exportNotesToUserLocation(uri: Uri, selectedNoteIds: List<Long>? = null) {
         viewModelScope.launch {
-            val result = exportImportManager.exportNotesToUserLocation(context, uri)
+            // 使用自定义导出ID（如果存在）或传入的selectedNoteIds
+            val exportIds = _customExportIds.value ?: selectedNoteIds
+            val result = exportImportManager.exportNotesToUserLocation(context, uri, exportIds)
             _exportResult.value = result
+            // 清除自定义导出ID
+            _customExportIds.value = null
         }
     }
     
-    fun importNotes(zipUri: Uri) {
+    fun setCustomExportIds(ids: List<Long>) {
+        _customExportIds.value = ids
+    }
+    
+    fun importNotes(zipUri: Uri, replaceExisting: Boolean = false) {
         viewModelScope.launch {
-            val result = exportImportManager.importNotes(context, zipUri)
+            val result = exportImportManager.importNotes(context, zipUri, replaceExisting)
             _importResult.value = result
         }
     }

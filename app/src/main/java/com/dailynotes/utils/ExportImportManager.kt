@@ -28,9 +28,22 @@ class ExportImportManager @Inject constructor(
         .setPrettyPrinting()
         .create()
 
-    suspend fun exportNotesToUserLocation(context: Context, uri: Uri): ExportResult {
+    suspend fun exportNotesToUserLocation(
+        context: Context, 
+        uri: Uri, 
+        selectedNoteIds: List<Long>? = null
+    ): ExportResult {
         return try {
-            val notes = repository.getAllNotes().first()
+            val allNotes = repository.getAllNotes().first()
+            val notes = if (selectedNoteIds != null) {
+                allNotes.filter { it.id in selectedNoteIds }
+            } else {
+                allNotes
+            }
+            
+            if (notes.isEmpty()) {
+                return ExportResult.Error("没有选择要导出的记事")
+            }
             
             context.contentResolver.openOutputStream(uri)?.use { outputStream ->
                 ZipOutputStream(outputStream).use { zip ->
@@ -60,7 +73,12 @@ class ExportImportManager @Inject constructor(
                 }
             }
             
-            ExportResult.Success("导出成功")
+            val message = if (selectedNoteIds != null) {
+                "导出成功，共导出 ${notes.size} 条记事"
+            } else {
+                "导出成功"
+            }
+            ExportResult.Success(message)
         } catch (e: Exception) {
             ExportResult.Error(e.message ?: "导出失败")
         }
@@ -111,7 +129,11 @@ class ExportImportManager @Inject constructor(
         }
     }
     
-    suspend fun importNotes(context: Context, zipUri: Uri): ImportResult {
+    suspend fun importNotes(
+        context: Context, 
+        zipUri: Uri, 
+        replaceExisting: Boolean = false
+    ): ImportResult {
         return try {
             val tempDir = File(context.cacheDir, "import_temp")
             if (tempDir.exists()) {
@@ -165,6 +187,13 @@ class ExportImportManager @Inject constructor(
                     if (notesJson != null) {
                         val importedNotes = gson.fromJson(notesJson, Array<NoteEntity>::class.java).toList()
                         
+                        if (replaceExisting) {
+                            // 清空现有数据
+                            repository.getAllNotes().first().forEach { note ->
+                                repository.deleteNote(note)
+                            }
+                        }
+                        
                         // 更新媒体文件路径
                         val updatedNotes = importedNotes.map { note ->
                             val updatedMediaItems = note.mediaItems.map { mediaItem ->
@@ -180,7 +209,12 @@ class ExportImportManager @Inject constructor(
                             repository.insertNote(note)
                         }
                         
-                        ImportResult.Success(updatedNotes.size)
+                        val message = if (replaceExisting) {
+                            "替换导入成功，共导入 ${updatedNotes.size} 条记事"
+                        } else {
+                            "追加导入成功，共导入 ${updatedNotes.size} 条记事"
+                        }
+                        ImportResult.Success(updatedNotes.size, message)
                     } else {
                         ImportResult.Error("ZIP文件中未找到笔记数据")
                     }
@@ -207,6 +241,6 @@ sealed class ExportResult {
 }
 
 sealed class ImportResult {
-    data class Success(val importedCount: Int) : ImportResult()
+    data class Success(val importedCount: Int, val message: String) : ImportResult()
     data class Error(val message: String) : ImportResult()
 }
