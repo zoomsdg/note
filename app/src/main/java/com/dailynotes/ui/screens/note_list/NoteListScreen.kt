@@ -17,8 +17,12 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import android.net.Uri
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -51,15 +55,20 @@ fun NoteListScreen(
     var showExportDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
     var showCustomExportDialog by remember { mutableStateOf(false) }
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var showImportPasswordDialog by remember { mutableStateOf(false) }
     var exportSelectedOnly by remember { mutableStateOf(false) }
     var importReplaceMode by remember { mutableStateOf(false) }
+    var pendingExportAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
     
     // ZIP文件导入选择器
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let { 
-            viewModel.importNotes(it, importReplaceMode)
+            pendingImportUri = it
+            showImportPasswordDialog = true
         }
     }
     
@@ -312,9 +321,12 @@ fun NoteListScreen(
                             onClick = {
                                 showExportDialog = false
                                 exportSelectedOnly = true
-                                val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault())
-                                val fileName = "选中记事备份_${dateFormat.format(java.util.Date())}.zip"
-                                exportLauncher.launch(fileName)
+                                pendingExportAction = {
+                                    val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault())
+                                    val fileName = "选中记事备份_${dateFormat.format(java.util.Date())}.zip"
+                                    exportLauncher.launch(fileName)
+                                }
+                                showPasswordDialog = true
                             }
                         ) {
                             Text("导出选中")
@@ -324,7 +336,10 @@ fun NoteListScreen(
                     TextButton(
                         onClick = {
                             showExportDialog = false
-                            showCustomExportDialog = true
+                            pendingExportAction = {
+                                showCustomExportDialog = true
+                            }
+                            showPasswordDialog = true
                         }
                     ) {
                         Text("自定义选择")
@@ -334,9 +349,12 @@ fun NoteListScreen(
                         onClick = {
                             showExportDialog = false
                             exportSelectedOnly = false
-                            val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault())
-                            val fileName = "全部记事备份_${dateFormat.format(java.util.Date())}.zip"
-                            exportLauncher.launch(fileName)
+                            pendingExportAction = {
+                                val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault())
+                                val fileName = "全部记事备份_${dateFormat.format(java.util.Date())}.zip"
+                                exportLauncher.launch(fileName)
+                            }
+                            showPasswordDialog = true
                         }
                     ) {
                         Text("导出全部")
@@ -412,14 +430,162 @@ fun NoteListScreen(
             onExport = { selectedNoteIds ->
                 showCustomExportDialog = false
                 exportSelectedOnly = true
-                val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault())
-                val fileName = "自定义记事备份_${dateFormat.format(java.util.Date())}.zip"
-                // 设置要导出的记事ID
-                viewModel.setCustomExportIds(selectedNoteIds)
-                exportLauncher.launch(fileName)
+                pendingExportAction = {
+                    val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault())
+                    val fileName = "自定义记事备份_${dateFormat.format(java.util.Date())}.zip"
+                    // 设置要导出的记事ID
+                    viewModel.setCustomExportIds(selectedNoteIds)
+                    exportLauncher.launch(fileName)
+                }
+                showPasswordDialog = true
             }
         )
     }
+    
+    // 导出密码输入对话框
+    if (showPasswordDialog) {
+        PasswordDialog(
+            title = "设置导出密码",
+            onDismiss = { 
+                showPasswordDialog = false
+                pendingExportAction = null
+            },
+            onConfirm = { password ->
+                showPasswordDialog = false
+                viewModel.setExportPassword(password)
+                pendingExportAction?.invoke()
+                pendingExportAction = null
+            },
+            viewModel = viewModel
+        )
+    }
+    
+    // 导入密码输入对话框
+    if (showImportPasswordDialog) {
+        PasswordDialog(
+            title = "输入导入密码",
+            onDismiss = { 
+                showImportPasswordDialog = false
+                pendingImportUri = null
+            },
+            onConfirm = { password ->
+                showImportPasswordDialog = false
+                pendingImportUri?.let { uri ->
+                    viewModel.importNotesWithPassword(uri, password, importReplaceMode)
+                }
+                pendingImportUri = null
+            },
+            viewModel = viewModel,
+            isImport = true
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PasswordDialog(
+    title: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+    viewModel: NoteListViewModel,
+    isImport: Boolean = false
+) {
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var showPassword by remember { mutableStateOf(false) }
+    var passwordError by remember { mutableStateOf("") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (!isImport) {
+                    Text(
+                        text = viewModel.getPasswordRequirements(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { 
+                        password = it
+                        passwordError = ""
+                    },
+                    label = { Text(if (isImport) "请输入密码" else "设置密码") },
+                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { showPassword = !showPassword }) {
+                            Icon(
+                                imageVector = if (showPassword) Icons.Default.Done else Icons.Default.Check,
+                                contentDescription = if (showPassword) "隐藏密码" else "显示密码"
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                if (!isImport) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = { 
+                            confirmPassword = it
+                            passwordError = ""
+                        },
+                        label = { Text("确认密码") },
+                        visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+                
+                if (passwordError.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = passwordError,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    when {
+                        password.isEmpty() -> {
+                            passwordError = "密码不能为空"
+                        }
+                        !isImport && !viewModel.validatePassword(password) -> {
+                            passwordError = "密码不符合要求"
+                        }
+                        !isImport && password != confirmPassword -> {
+                            passwordError = "两次输入的密码不一致"
+                        }
+                        else -> {
+                            onConfirm(password)
+                        }
+                    }
+                },
+                enabled = password.isNotEmpty() && (isImport || confirmPassword.isNotEmpty())
+            ) {
+                Text("确定")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
 }
 
 @Composable

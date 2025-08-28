@@ -70,6 +70,9 @@ class NoteListViewModel @Inject constructor(
     
     private val _customExportIds = MutableStateFlow<List<Long>?>(null)
     val customExportIds = _customExportIds.asStateFlow()
+    
+    private val _exportPassword = MutableStateFlow<String?>(null)
+    val exportPassword = _exportPassword.asStateFlow()
 
     fun deleteNote(note: NoteEntity) {
         viewModelScope.launch {
@@ -88,10 +91,17 @@ class NoteListViewModel @Inject constructor(
         viewModelScope.launch {
             // 使用自定义导出ID（如果存在）或传入的selectedNoteIds
             val exportIds = _customExportIds.value ?: selectedNoteIds
-            val result = exportImportManager.exportNotesToUserLocation(context, uri, exportIds)
+            val password = _exportPassword.value
+            
+            val result = if (password != null) {
+                exportImportManager.exportNotesToUserLocationWithPassword(context, uri, password, exportIds)
+            } else {
+                exportImportManager.exportNotesToUserLocation(context, uri, exportIds)
+            }
             _exportResult.value = result
-            // 清除自定义导出ID
+            // 清除自定义导出ID和密码
             _customExportIds.value = null
+            _exportPassword.value = null
         }
     }
     
@@ -99,11 +109,41 @@ class NoteListViewModel @Inject constructor(
         _customExportIds.value = ids
     }
     
+    fun setExportPassword(password: String) {
+        _exportPassword.value = password
+    }
+    
+    fun exportNotesToUserLocationWithPassword(uri: Uri, password: String, selectedNoteIds: List<Long>? = null) {
+        viewModelScope.launch {
+            // 使用自定义导出ID（如果存在）或传入的selectedNoteIds
+            val exportIds = _customExportIds.value ?: selectedNoteIds
+            val result = exportImportManager.exportNotesToUserLocationWithPassword(context, uri, password, exportIds)
+            _exportResult.value = result
+            // 清除自定义导出ID
+            _customExportIds.value = null
+        }
+    }
+    
     fun importNotes(zipUri: Uri, replaceExisting: Boolean = false) {
         viewModelScope.launch {
             val result = exportImportManager.importNotes(context, zipUri, replaceExisting)
             _importResult.value = result
         }
+    }
+    
+    fun importNotesWithPassword(zipUri: Uri, password: String, replaceExisting: Boolean = false) {
+        viewModelScope.launch {
+            val result = exportImportManager.importNotesWithPassword(context, zipUri, password, replaceExisting)
+            _importResult.value = result
+        }
+    }
+    
+    fun validatePassword(password: String): Boolean {
+        return exportImportManager.validatePassword(password)
+    }
+    
+    fun getPasswordRequirements(): String {
+        return exportImportManager.getPasswordRequirements()
     }
     
     fun clearExportResult() {

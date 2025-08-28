@@ -90,6 +90,9 @@ dependencies {
     implementation "androidx.media3:media3-ui:1.1.1"
     implementation "androidx.media3:media3-common:1.1.1"
     
+    // ZIP 密码加密
+    implementation 'net.lingala.zip4j:zip4j:2.11.5'
+    
     // 测试依赖
     testImplementation 'junit:junit:4.13.2'
     debugImplementation 'androidx.compose.ui:ui-tooling'
