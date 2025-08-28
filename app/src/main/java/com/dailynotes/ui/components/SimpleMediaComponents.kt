@@ -1,9 +1,12 @@
 package com.dailynotes.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -11,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import java.io.File
 
@@ -48,6 +52,8 @@ fun SimpleMediaDisplay(
     onDeleteItem: (com.dailynotes.data.MediaItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showImageDialog by remember { mutableStateOf<String?>(null) }
+    
     if (mediaItems.isNotEmpty()) {
         LazyRow(
             modifier = modifier.fillMaxWidth(),
@@ -59,7 +65,8 @@ fun SimpleMediaDisplay(
                     com.dailynotes.data.MediaType.IMAGE -> {
                         ImageCard(
                             imagePath = mediaItem.path,
-                            onDelete = { onDeleteItem(mediaItem) }
+                            onDelete = { onDeleteItem(mediaItem) },
+                            onClick = { showImageDialog = mediaItem.path }
                         )
                     }
                     com.dailynotes.data.MediaType.AUDIO -> {
@@ -72,12 +79,21 @@ fun SimpleMediaDisplay(
             }
         }
     }
+    
+    // 图片放大对话框
+    showImageDialog?.let { imagePath ->
+        ImagePreviewDialog(
+            imagePath = imagePath,
+            onDismiss = { showImageDialog = null }
+        )
+    }
 }
 
 @Composable
 private fun ImageCard(
     imagePath: String,
     onDelete: () -> Unit,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -90,7 +106,8 @@ private fun ImageCard(
                 contentDescription = "图片",
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(8.dp)),
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onClick() },
                 contentScale = ContentScale.Crop
             )
             
@@ -113,6 +130,8 @@ private fun AudioCard(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var isPlaying by remember { mutableStateOf(false) }
+    
     Card(
         modifier = modifier.width(200.dp)
     ) {
@@ -142,6 +161,72 @@ private fun AudioCard(
                     onClick = onDelete
                 ) {
                     Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            }
+            
+            // 播放控制按钮
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = { 
+                        isPlaying = !isPlaying
+                        // TODO: 实际的播放逻辑
+                    }
+                ) {
+                    if (isPlaying) {
+                        Text(
+                            text = "⏸",
+                            style = MaterialTheme.typography.headlineMedium
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "播放"
+                        )
+                    }
+                }
+                Text(
+                    text = if (isPlaying) "播放中..." else "点击播放",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImagePreviewDialog(
+    imagePath: String,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column {
+                AsyncImage(
+                    model = File(imagePath),
+                    contentDescription = "图片预览",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                        .clickable { onDismiss() },
+                    contentScale = ContentScale.Fit
+                )
+                
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(8.dp)
+                ) {
+                    Text("关闭")
                 }
             }
         }
