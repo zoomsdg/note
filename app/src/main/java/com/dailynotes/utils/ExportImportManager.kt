@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.dailynotes.data.NoteEntity
 import com.dailynotes.data.NoteRepository
+import com.dailynotes.data.security.DatabaseSecurity
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.flow.first
@@ -14,7 +15,9 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.text.SimpleDateFormat
+import java.security.MessageDigest
 import java.util.*
+import java.util.regex.Pattern
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -30,6 +33,137 @@ class ExportImportManager @Inject constructor(
         .setDateFormat("yyyy-MM-dd HH:mm:ss")
         .setPrettyPrinting()
         .create()
+    
+    // 安全常量
+    private val MAX_FILE_SIZE = 100 * 1024 * 1024L // 100MB
+    private val MAX_ENTRIES = 10000
+    private val ALLOWED_IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "gif", "webp")
+    private val ALLOWED_AUDIO_EXTENSIONS = setOf("3gp", "mp3", "wav", "m4a", "aac")
+    private val DANGEROUS_PATH_PATTERN = Pattern.compile("(../|\\\\\\.\\.\\\\|/\\.\\./|\\.\\./|\\\\\\.\\.)")
+    
+    private fun sanitizeFileName(fileName: String): String {
+        if (fileName.contains("..") || DANGEROUS_PATH_PATTERN.matcher(fileName).find()) {
+            throw SecurityException("危险的文件路径: $fileName")
+        }
+        return fileName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+    }
+    
+    private fun validateFileExtension(fileName: String, allowedExtensions: Set<String>): Boolean {
+        val extension = fileName.substringAfterLast('.', "").lowercase()
+        return allowedExtensions.contains(extension)
+    }
+    
+    private fun validateFileSize(size: Long): Boolean {
+        return size > 0 && size <= MAX_FILE_SIZE
+    }
+    
+    private fun createSecureTempFile(context: Context, prefix: String, suffix: String): File {
+        val tempDir = File(context.cacheDir, "secure_temp")
+        if (!tempDir.exists()) {
+            tempDir.mkdirs()
+            // 设置临时目录权限，仅应用自身可访问
+            tempDir.setReadable(false, false)
+            tempDir.setWritable(false, false)
+            tempDir.setExecutable(false, false)
+            tempDir.setReadable(true, true)
+            tempDir.setWritable(true, true)
+            tempDir.setExecutable(true, true)
+        }
+        return File.createTempFile(prefix, suffix, tempDir)
+    }
+    
+    private fun secureDeleteFile(file: File) {
+        if (file.exists()) {
+            try {
+                // 多次覆写文件内容以防止数据恢复
+                if (file.isFile) {
+                    val fileSize = file.length()
+                    file.writeBytes(ByteArray(fileSize.toInt()) { 0 })
+                    file.writeBytes(ByteArray(fileSize.toInt()) { 0xFF.toByte() })
+                    file.writeBytes(ByteArray(fileSize.toInt()) { (Math.random() * 256).toInt().toByte() })
+                }
+            } catch (e: Exception) {
+                // 覆写失败时至少删除文件
+            } finally {
+                file.delete()
+            }
+        }
+    }
+    
+    private fun cleanupTempDirectory(context: Context) {
+        val tempDir = File(context.cacheDir, "secure_temp")
+        if (tempDir.exists()) {
+            tempDir.listFiles()?.forEach { file ->
+                secureDeleteFile(file)
+            }
+        }
+    }
+    
+    // 添加数据清理功能
+    suspend fun cleanupOrphanedMediaFiles(context: Context): Int {
+        val notes = repository.getAllNotes().first()
+        val referencedMediaPaths = mutableSetOf<String>()
+        
+        // 收集所有被引用的媒体文件路径
+        notes.forEach { note ->
+            note.mediaItems.forEach { mediaItem ->
+                referencedMediaPaths.add(mediaItem.path)
+            }
+        }
+        
+        var deletedCount = 0
+        
+        // 清理图片目录
+        val imageDir = File(context.filesDir, "images")
+        if (imageDir.exists()) {
+            imageDir.listFiles()?.forEach { file ->
+                if (!referencedMediaPaths.contains(file.absolutePath)) {
+                    secureDeleteFile(file)
+                    deletedCount++
+                }
+            }
+        }
+        
+        // 清理音频目录
+        val audioDir = File(context.filesDir, "audio")
+        if (audioDir.exists()) {
+            audioDir.listFiles()?.forEach { file ->
+                if (!referencedMediaPaths.contains(file.absolutePath)) {
+                    secureDeleteFile(file)
+                    deletedCount++
+                }
+            }
+        }
+        
+        // 清理缓存和临时文件
+        cleanupTempDirectory(context)
+        
+        return deletedCount
+    }
+    
+    suspend fun clearAllAppData(context: Context): Boolean {
+        return try {
+            // 清除所有笔记数据
+            repository.deleteAllNotes()
+            
+            // 安全删除所有媒体文件
+            val imageDir = File(context.filesDir, "images")
+            val audioDir = File(context.filesDir, "audio")
+            
+            imageDir.listFiles()?.forEach { secureDeleteFile(it) }
+            audioDir.listFiles()?.forEach { secureDeleteFile(it) }
+            
+            // 清理临时文件
+            cleanupTempDirectory(context)
+            
+            // 清理数据库安全信息（会导致数据库重新生成新密钥）
+            DatabaseSecurity.clearDatabaseSecurity(context)
+            
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     suspend fun exportNotesToUserLocation(
         context: Context, 
@@ -105,8 +239,8 @@ class ExportImportManager @Inject constructor(
                 return ExportResult.Error("没有选择要导出的记事")
             }
             
-            // 创建临时文件用于ZIP加密
-            val tempFile = File(context.cacheDir, "temp_export_${System.currentTimeMillis()}.zip")
+            // 创建安全临时文件用于ZIP加密
+            val tempFile = createSecureTempFile(context, "export_", ".zip")
             
             try {
                 // 使用zip4j创建加密的ZIP文件
@@ -159,10 +293,8 @@ class ExportImportManager @Inject constructor(
                 }
                 ExportResult.Success(message)
             } finally {
-                // 确保清理临时文件
-                if (tempFile.exists()) {
-                    tempFile.delete()
-                }
+                // 安全清理临时文件
+                secureDeleteFile(tempFile)
             }
             
         } catch (e: Exception) {
@@ -234,37 +366,68 @@ class ExportImportManager @Inject constructor(
                     var entry: ZipEntry?
                     var notesJson: String? = null
                     
+                    var entryCount = 0
                     while (zip.nextEntry.also { entry = it } != null) {
                         val currentEntry = entry ?: continue
                         
+                        // 防止ZIP炸弹攻击
+                        if (++entryCount > MAX_ENTRIES) {
+                            throw SecurityException("ZIP文件条目过多，可能存在安全风险")
+                        }
+                        
+                        // 验证文件路径安全性
+                        sanitizeFileName(currentEntry.name)
+                        
                         when {
                             currentEntry.name == "notes.json" -> {
-                                notesJson = zip.readBytes().toString(Charsets.UTF_8)
+                                if (!validateFileSize(currentEntry.size)) {
+                                    throw SecurityException("notes.json文件过大")
+                                }
+                                
+                                val buffer = ByteArray(currentEntry.size.toInt().coerceAtMost(1024 * 1024)) // 最大1MB
+                                val bytesRead = zip.read(buffer)
+                                notesJson = String(buffer, 0, bytesRead, Charsets.UTF_8)
                             }
                             currentEntry.name.startsWith("media/") && !currentEntry.isDirectory -> {
-                                val originalFileName = File(currentEntry.name).name
+                                val originalFileName = sanitizeFileName(File(currentEntry.name).name)
+                                
+                                // 验证文件大小和类型
+                                if (!validateFileSize(currentEntry.size)) {
+                                    throw SecurityException("媒体文件过大: $originalFileName")
+                                }
+                                
                                 val newMediaFile = when {
-                                    originalFileName.endsWith(".jpg", true) || 
-                                    originalFileName.endsWith(".png", true) || 
-                                    originalFileName.endsWith(".jpeg", true) -> {
+                                    validateFileExtension(originalFileName, ALLOWED_IMAGE_EXTENSIONS) -> {
                                         MediaUtils.createImageFile(context, "imported_${System.currentTimeMillis()}")
                                     }
-                                    originalFileName.endsWith(".3gp", true) || 
-                                    originalFileName.endsWith(".mp3", true) || 
-                                    originalFileName.endsWith(".wav", true) -> {
+                                    validateFileExtension(originalFileName, ALLOWED_AUDIO_EXTENSIONS) -> {
                                         MediaUtils.createAudioFile(context, "imported_${System.currentTimeMillis()}")
                                     }
                                     else -> {
-                                        File(tempDir, "imported_${System.currentTimeMillis()}_$originalFileName")
+                                        throw SecurityException("不支持的媒体文件类型: $originalFileName")
                                     }
                                 }
                                 
+                                // 安全地复制文件内容
+                                var copiedBytes = 0L
                                 newMediaFile.outputStream().use { output ->
-                                    zip.copyTo(output)
+                                    val buffer = ByteArray(8192)
+                                    var bytesRead: Int
+                                    while (zip.read(buffer).also { bytesRead = it } != -1) {
+                                        copiedBytes += bytesRead
+                                        if (copiedBytes > MAX_FILE_SIZE) {
+                                            throw SecurityException("文件内容超出大小限制")
+                                        }
+                                        output.write(buffer, 0, bytesRead)
+                                    }
                                 }
                                 
                                 // 记录路径映射关系
                                 mediaPathMapping[currentEntry.name] = newMediaFile.absolutePath
+                            }
+                            else -> {
+                                // 忽略其他不认识的文件，增强安全性
+                                continue
                             }
                         }
                         zip.closeEntry()
@@ -327,8 +490,8 @@ class ExportImportManager @Inject constructor(
             
             val mediaPathMapping = mutableMapOf<String, String>()
             
-            // 创建临时ZIP文件
-            val tempZipFile = File(context.cacheDir, "temp_import_${System.currentTimeMillis()}.zip")
+            // 创建安全临时ZIP文件
+            val tempZipFile = createSecureTempFile(context, "import_", ".zip")
             
             try {
                 // 复制加密的ZIP文件到临时位置
@@ -418,10 +581,8 @@ class ExportImportManager @Inject constructor(
                 }
                 
             } finally {
-                // 清理临时文件
-                if (tempZipFile.exists()) {
-                    tempZipFile.delete()
-                }
+                // 安全清理临时文件
+                secureDeleteFile(tempZipFile)
             }
             
         } catch (e: Exception) {
@@ -440,25 +601,28 @@ class ExportImportManager @Inject constructor(
     }
     
     fun validatePassword(password: String): Boolean {
-        if (password.length < 8) return false
+        if (password.length < 12) return false
         
         var hasUpper = false
         var hasLower = false
         var hasDigit = false
+        var hasSpecial = false
+        val specialChars = "!@#$%^&*()_+-=[]{}|;:,.<>?"
         
         for (char in password) {
             when {
                 char.isUpperCase() -> hasUpper = true
                 char.isLowerCase() -> hasLower = true
                 char.isDigit() -> hasDigit = true
+                specialChars.contains(char) -> hasSpecial = true
             }
         }
         
-        return hasUpper && hasLower && hasDigit
+        return hasUpper && hasLower && hasDigit && hasSpecial
     }
     
     fun getPasswordRequirements(): String {
-        return "密码要求：\n• 至少8个字符\n• 包含大写字母\n• 包含小写字母\n• 包含数字"
+        return "密码要求：\n• 至少12个字符\n• 包含大写字母\n• 包含小写字母\n• 包含数字\n• 包含特殊字符 (!@#$%^&*等)"
     }
     
     fun getExportFile(context: Context, fileName: String): File {

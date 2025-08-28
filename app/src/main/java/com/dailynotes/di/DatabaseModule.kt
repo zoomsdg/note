@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.dailynotes.data.NoteDatabase
 import com.dailynotes.data.NoteDao
+import com.dailynotes.data.security.DatabaseSecurity
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -22,7 +23,8 @@ object DatabaseModule {
             context,
             NoteDatabase::class.java,
             NoteDatabase.DATABASE_NAME
-        ).build()
+        )
+        .build()
     }
 
     @Provides
