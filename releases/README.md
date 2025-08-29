@@ -5,8 +5,17 @@
 ## 当前版本
 
 ### v1.0 (2024-08-28)
+**Release版本（推荐）**
 - **文件**: `dailynotes-v1.0-release.apk`
 - **大小**: 9.4MB
+- **特性**: 优化版本，未签名但性能更好
+
+**Debug版本（开发调试）**
+- **文件**: `dailynotes-v1.0-debug.apk`
+- **大小**: 13MB
+- **特性**: 包含调试信息，便于问题排查
+
+**通用信息**
 - **最低Android版本**: API 24 (Android 7.0)
 - **目标Android版本**: API 34 (Android 14)
 

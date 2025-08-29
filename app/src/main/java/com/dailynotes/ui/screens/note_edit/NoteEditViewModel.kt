@@ -8,11 +8,14 @@ import com.dailynotes.data.MediaItem
 import com.dailynotes.data.MediaType
 import com.dailynotes.data.NoteEntity
 import com.dailynotes.data.NoteRepository
+import com.dailynotes.ui.components.ContentBlock
+import com.dailynotes.ui.components.ContentBlockType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.Date
+import java.util.UUID
 import javax.inject.Inject
 
 @HiltViewModel
@@ -30,16 +33,48 @@ class NoteEditViewModel @Inject constructor(
         if (noteId != -1L) {
             viewModelScope.launch {
                 repository.getNoteById(noteId)?.let { note ->
+                    // 从保存的内容和媒体文件重新构建内容块
+                    val blocks = parseContentToBlocks(note.content, note.mediaItems)
+                    
                     _uiState.value = _uiState.value.copy(
                         noteId = note.id,
                         title = note.title,
                         contentField = TextFieldValue(note.content),
                         category = note.category,
-                        mediaItems = note.mediaItems
+                        mediaItems = note.mediaItems,
+                        contentBlocks = blocks
                     )
                 }
             }
         }
+    }
+    
+    private fun parseContentToBlocks(content: String, mediaItems: List<MediaItem>): List<ContentBlock> {
+        val blocks = mutableListOf<ContentBlock>()
+        val lines = content.split('\n')
+        
+        for (line in lines) {
+            if (line.matches(Regex("\\[图片:.*]")) || line.matches(Regex("\\[音频:.*]"))) {
+                // 找到对应的媒体文件
+                val fileName = line.substringAfter(':').substringBefore(']').substringBefore(' ')
+                val mediaItem = mediaItems.find { it.path.endsWith(fileName) }
+                
+                mediaItem?.let {
+                    val blockType = if (line.startsWith("[图片:")) ContentBlockType.IMAGE else ContentBlockType.AUDIO
+                    blocks.add(ContentBlock(type = blockType, mediaItem = it))
+                }
+            } else if (line.isNotBlank()) {
+                // 文本内容
+                blocks.add(ContentBlock(type = ContentBlockType.TEXT, content = line, textFieldValue = TextFieldValue(line)))
+            }
+        }
+        
+        // 确保最后有一个空的文本块用于编辑
+        if (blocks.isEmpty() || blocks.last().type != ContentBlockType.TEXT || blocks.last().content.isNotEmpty()) {
+            blocks.add(ContentBlock(type = ContentBlockType.TEXT))
+        }
+        
+        return blocks
     }
     
     fun loadCategories() {
@@ -91,31 +126,75 @@ class NoteEditViewModel @Inject constructor(
         val currentItems = _uiState.value.mediaItems.toMutableList()
         currentItems.add(mediaItem)
         
-        // 在光标位置插入媒体标记
-        val currentContent = _uiState.value.contentField
-        val cursorPosition = currentContent.selection.start
-        
-        val mediaTag = when (mediaItem.type) {
-            MediaType.IMAGE -> "\n[图片:${mediaItem.path.substringAfterLast('/')}]\n"
-            MediaType.AUDIO -> "\n[音频:${mediaItem.path.substringAfterLast('/')}${if (mediaItem.duration > 0) " ${formatDuration(mediaItem.duration)}" else ""}]\n"
+        // 创建新的媒体块
+        val mediaBlock = when (mediaItem.type) {
+            MediaType.IMAGE -> ContentBlock(type = ContentBlockType.IMAGE, mediaItem = mediaItem)
+            MediaType.AUDIO -> ContentBlock(type = ContentBlockType.AUDIO, mediaItem = mediaItem)
         }
         
-        val newText = StringBuilder(currentContent.text)
-            .insert(cursorPosition, mediaTag)
-            .toString()
+        // 智能插入媒体块的逻辑
+        val currentBlocks = _uiState.value.contentBlocks.toMutableList()
+        val insertionIndex = findBestInsertionPoint(currentBlocks)
         
-        val newCursorPosition = cursorPosition + mediaTag.length
-        val newContentField = TextFieldValue(
-            text = newText,
-            selection = TextRange(newCursorPosition)
-        )
+        // 插入媒体块
+        currentBlocks.add(insertionIndex, mediaBlock)
         
-        val extractedTitle = extractTitleFromContent(newText)
+        // 确保媒体块后面有文本块可供继续编辑
+        if (insertionIndex >= currentBlocks.size - 1 || 
+            currentBlocks.getOrNull(insertionIndex + 1)?.type != ContentBlockType.TEXT) {
+            currentBlocks.add(insertionIndex + 1, ContentBlock(type = ContentBlockType.TEXT))
+        }
+        
+        // 从内容块重新生成内容文本用于标题提取
+        val contentText = generateContentFromBlocks(currentBlocks)
+        val extractedTitle = extractTitleFromContent(contentText)
         
         _uiState.value = _uiState.value.copy(
-            contentField = newContentField,
             title = extractedTitle,
-            mediaItems = currentItems
+            mediaItems = currentItems,
+            contentBlocks = currentBlocks
+        )
+    }
+    
+    private fun findBestInsertionPoint(blocks: List<ContentBlock>): Int {
+        if (blocks.isEmpty()) return 0
+        
+        // 找到最后一个有内容的块
+        val lastNonEmptyIndex = blocks.indexOfLast { block ->
+            block.type != ContentBlockType.TEXT || block.content.isNotEmpty()
+        }
+        
+        // 如果所有文本块都是空的，插入到开头
+        if (lastNonEmptyIndex == -1) return 0
+        
+        // 插入到最后一个有内容的块之后
+        return lastNonEmptyIndex + 1
+    }
+    
+    private fun generateContentFromBlocks(blocks: List<ContentBlock>): String {
+        return blocks.joinToString("\n") { block ->
+            when (block.type) {
+                ContentBlockType.TEXT -> block.content
+                ContentBlockType.IMAGE -> "[图片:${block.mediaItem?.path?.substringAfterLast('/') ?: ""}]"
+                ContentBlockType.AUDIO -> {
+                    val fileName = block.mediaItem?.path?.substringAfterLast('/') ?: ""
+                    val duration = if (block.mediaItem?.duration ?: 0 > 0) {
+                        " ${formatDuration(block.mediaItem?.duration ?: 0)}"
+                    } else ""
+                    "[音频:$fileName$duration]"
+                }
+            }
+        }
+    }
+    
+    fun updateContentBlocks(blocks: List<ContentBlock>) {
+        val contentText = generateContentFromBlocks(blocks)
+        val extractedTitle = extractTitleFromContent(contentText)
+        
+        _uiState.value = _uiState.value.copy(
+            contentBlocks = blocks,
+            contentField = TextFieldValue(contentText),
+            title = extractedTitle
         )
     }
     
@@ -129,7 +208,23 @@ class NoteEditViewModel @Inject constructor(
     fun removeMediaItem(mediaItem: MediaItem) {
         val currentItems = _uiState.value.mediaItems.toMutableList()
         currentItems.remove(mediaItem)
-        _uiState.value = _uiState.value.copy(mediaItems = currentItems)
+        
+        // 从内容块中删除对应的媒体块
+        val currentBlocks = _uiState.value.contentBlocks.toMutableList()
+        currentBlocks.removeAll { block -> 
+            (block.type == ContentBlockType.IMAGE || block.type == ContentBlockType.AUDIO) &&
+            block.mediaItem?.path == mediaItem.path 
+        }
+        
+        val contentText = generateContentFromBlocks(currentBlocks)
+        val extractedTitle = extractTitleFromContent(contentText)
+        
+        _uiState.value = _uiState.value.copy(
+            mediaItems = currentItems,
+            contentBlocks = currentBlocks,
+            contentField = TextFieldValue(contentText),
+            title = extractedTitle
+        )
         
         // 删除文件
         try {
@@ -180,7 +275,8 @@ data class NoteEditUiState(
     val title: String = "",
     val contentField: TextFieldValue = TextFieldValue(""),
     val category: String = "其他",
-    val mediaItems: List<MediaItem> = emptyList()
+    val mediaItems: List<MediaItem> = emptyList(),
+    val contentBlocks: List<ContentBlock> = listOf(ContentBlock(type = ContentBlockType.TEXT))
 ) {
     // 向后兼容性：从TextFieldValue获取纯文本内容
     val content: String get() = contentField.text

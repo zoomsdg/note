@@ -3,16 +3,13 @@ package com.dailynotes.ui.screens.note_edit
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Done
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,8 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.dailynotes.data.MediaItem
 import com.dailynotes.data.MediaType
-import com.dailynotes.ui.components.MediaControls
-import com.dailynotes.ui.components.SimpleMediaDisplay
+import com.dailynotes.ui.components.RichTextEditor
 import com.dailynotes.utils.MediaUtils
 import java.util.*
 
@@ -39,8 +35,8 @@ fun NoteEditScreen(
     val categories by viewModel.categories.collectAsState()
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var newCategoryText by remember { mutableStateOf("") }
-    var categoryExpanded by remember { mutableStateOf(false) }
-    var mediaExpanded by remember { mutableStateOf(false) }
+    var showOptionsMenu by remember { mutableStateOf(false) }
+    var showCategoryDialog by remember { mutableStateOf(false) }
     
     // 图片选择器
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -94,144 +90,118 @@ fun NoteEditScreen(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = { 
-                            viewModel.saveAndExit(onNavigateBack)
+                    Box {
+                        IconButton(onClick = { showOptionsMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "更多选项")
                         }
-                    ) {
-                        Icon(Icons.Default.Done, contentDescription = "保存")
+                        
+                        DropdownMenu(
+                            expanded = showOptionsMenu,
+                            onDismissRequest = { showOptionsMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("选择分类") },
+                                onClick = {
+                                    showOptionsMenu = false
+                                    showCategoryDialog = true
+                                }
+                            )
+                            
+                            DropdownMenuItem(
+                                text = { Text("添加图片") },
+                                onClick = {
+                                    showOptionsMenu = false
+                                    imagePickerLauncher.launch("image/*")
+                                }
+                            )
+                            
+                            DropdownMenuItem(
+                                text = { Text("添加音频") },
+                                onClick = {
+                                    showOptionsMenu = false
+                                    audioPickerLauncher.launch("audio/*")
+                                }
+                            )
+                        }
                     }
                 }
             )
         }
     ) { paddingValues ->
-        Column(
+        // 富文本编辑器 - 占据全屏空间，支持内嵌媒体显示
+        RichTextEditor(
+            contentBlocks = uiState.contentBlocks,
+            onContentChange = viewModel::updateContentBlocks,
+            onRequestFocus = { /* TODO: 实现焦点管理 */ },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // 移除标题输入框，标题将自动从内容第一行第一句提取
-            
-            // 分类选择 - 可折叠
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { categoryExpanded = !categoryExpanded }
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "分类: ${uiState.category}",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Icon(
-                            imageVector = if (categoryExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                            contentDescription = if (categoryExpanded) "收起" else "展开"
-                        )
-                    }
-                    
-                    if (categoryExpanded) {
-                        LazyRow(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(16.dp)
+        )
+    }
+    
+    // 分类选择对话框
+    if (showCategoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showCategoryDialog = false },
+            title = { Text("选择分类") },
+            text = {
+                LazyColumn {
+                    items(categories) { category ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.updateCategory(category)
+                                    showCategoryDialog = false
+                                }
+                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            items(categories) { category ->
-                                FilterChip(
-                                    onClick = { 
-                                        viewModel.updateCategory(category)
-                                        categoryExpanded = false
-                                    },
-                                    label = { Text(category) },
-                                    selected = uiState.category == category
-                                )
-                            }
-                            
-                            item {
-                                FilterChip(
-                                    onClick = { 
-                                        showAddCategoryDialog = true
-                                        newCategoryText = ""
-                                    },
-                                    label = { Text("添加新分类") },
-                                    selected = false
-                                )
-                            }
+                            RadioButton(
+                                selected = uiState.category == category,
+                                onClick = {
+                                    viewModel.updateCategory(category)
+                                    showCategoryDialog = false
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = category)
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                }
-            }
-            
-            // 内容输入 - 支持光标位置和媒体插入
-            OutlinedTextField(
-                value = uiState.contentField,
-                onValueChange = viewModel::updateContent,
-                label = { Text("内容（标题将自动从第一行第一句提取）") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(450.dp), // 由于移除标题框，可以更大
-                maxLines = Int.MAX_VALUE, // 支持多行文本
-                placeholder = { Text("在此输入记事内容...") }
-            )
-            
-            // 媒体区域 - 可折叠
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { mediaExpanded = !mediaExpanded }
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "媒体 (${uiState.mediaItems.size})",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Icon(
-                            imageVector = if (mediaExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                            contentDescription = if (mediaExpanded) "收起" else "展开"
-                        )
                     }
                     
-                    if (mediaExpanded) {
-                        // 媒体控制按钮
-                        MediaControls(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            onImageClick = {
-                                // 打开图片选择器
-                                imagePickerLauncher.launch("image/*")
-                            },
-                            onAudioClick = {
-                                // 打开音频选择器
-                                audioPickerLauncher.launch("audio/*")
-                            }
-                        )
-                        
-                        // 媒体文件显示
-                        if (uiState.mediaItems.isNotEmpty()) {
-                            SimpleMediaDisplay(
-                                modifier = Modifier.padding(horizontal = 16.dp),
-                                mediaItems = uiState.mediaItems,
-                                onDeleteItem = viewModel::removeMediaItem
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showCategoryDialog = false
+                                    showAddCategoryDialog = true
+                                    newCategoryText = ""
+                                }
+                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "添加新分类",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = "添加新分类",
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCategoryDialog = false }) {
+                    Text("取消")
+                }
             }
-        }
+        )
     }
     
     // 添加新分类对话框
