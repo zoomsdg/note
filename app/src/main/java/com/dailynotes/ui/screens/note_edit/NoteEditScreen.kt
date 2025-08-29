@@ -113,14 +113,7 @@ fun NoteEditScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 标题输入
-            OutlinedTextField(
-                value = uiState.title,
-                onValueChange = viewModel::updateTitle,
-                label = { Text("标题") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+            // 移除标题输入框，标题将自动从内容第一行第一句提取
             
             // 分类选择 - 可折叠
             Card(
@@ -177,15 +170,16 @@ fun NoteEditScreen(
                 }
             }
             
-            // 内容输入 - 增大高度
+            // 内容输入 - 支持光标位置和媒体插入
             OutlinedTextField(
-                value = uiState.content,
+                value = uiState.contentField,
                 onValueChange = viewModel::updateContent,
-                label = { Text("内容") },
+                label = { Text("内容（标题将自动从第一行第一句提取）") },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(400.dp), // 增加到400dp，为长文本提供更多空间
-                maxLines = Int.MAX_VALUE // 支持多行文本
+                    .height(450.dp), // 由于移除标题框，可以更大
+                maxLines = Int.MAX_VALUE, // 支持多行文本
+                placeholder = { Text("在此输入记事内容...") }
             )
             
             // 媒体区域 - 可折叠

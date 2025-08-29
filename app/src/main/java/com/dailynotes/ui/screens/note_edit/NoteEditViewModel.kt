@@ -1,8 +1,11 @@
 package com.dailynotes.ui.screens.note_edit
 
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailynotes.data.MediaItem
+import com.dailynotes.data.MediaType
 import com.dailynotes.data.NoteEntity
 import com.dailynotes.data.NoteRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,7 +33,7 @@ class NoteEditViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(
                         noteId = note.id,
                         title = note.title,
-                        content = note.content,
+                        contentField = TextFieldValue(note.content),
                         category = note.category,
                         mediaItems = note.mediaItems
                     )
@@ -53,8 +56,31 @@ class NoteEditViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(title = title)
     }
 
-    fun updateContent(content: String) {
-        _uiState.value = _uiState.value.copy(content = content)
+    fun updateContent(contentField: TextFieldValue) {
+        val extractedTitle = extractTitleFromContent(contentField.text)
+        _uiState.value = _uiState.value.copy(
+            contentField = contentField,
+            title = extractedTitle
+        )
+    }
+    
+    private fun extractTitleFromContent(content: String): String {
+        if (content.isBlank()) return ""
+        
+        // 获取第一行
+        val firstLine = content.lines().firstOrNull()?.trim() ?: ""
+        if (firstLine.isEmpty()) return ""
+        
+        // 获取第一句（以句号、问号、感叹号分割）
+        val sentences = firstLine.split(Regex("[。！？.!?]"))
+        val firstSentence = sentences.firstOrNull()?.trim() ?: ""
+        
+        // 限制标题长度，避免过长
+        return if (firstSentence.length > 30) {
+            firstSentence.take(30) + "..."
+        } else {
+            firstSentence
+        }
     }
 
     fun updateCategory(category: String) {
@@ -64,7 +90,40 @@ class NoteEditViewModel @Inject constructor(
     fun addMediaItem(mediaItem: MediaItem) {
         val currentItems = _uiState.value.mediaItems.toMutableList()
         currentItems.add(mediaItem)
-        _uiState.value = _uiState.value.copy(mediaItems = currentItems)
+        
+        // 在光标位置插入媒体标记
+        val currentContent = _uiState.value.contentField
+        val cursorPosition = currentContent.selection.start
+        
+        val mediaTag = when (mediaItem.type) {
+            MediaType.IMAGE -> "\n[图片:${mediaItem.path.substringAfterLast('/')}]\n"
+            MediaType.AUDIO -> "\n[音频:${mediaItem.path.substringAfterLast('/')}${if (mediaItem.duration > 0) " ${formatDuration(mediaItem.duration)}" else ""}]\n"
+        }
+        
+        val newText = StringBuilder(currentContent.text)
+            .insert(cursorPosition, mediaTag)
+            .toString()
+        
+        val newCursorPosition = cursorPosition + mediaTag.length
+        val newContentField = TextFieldValue(
+            text = newText,
+            selection = TextRange(newCursorPosition)
+        )
+        
+        val extractedTitle = extractTitleFromContent(newText)
+        
+        _uiState.value = _uiState.value.copy(
+            contentField = newContentField,
+            title = extractedTitle,
+            mediaItems = currentItems
+        )
+    }
+    
+    private fun formatDuration(milliseconds: Long): String {
+        val seconds = milliseconds / 1000
+        val minutes = seconds / 60
+        val remainingSeconds = seconds % 60
+        return "%d:%02d".format(minutes, remainingSeconds)
     }
     
     fun removeMediaItem(mediaItem: MediaItem) {
@@ -119,7 +178,10 @@ class NoteEditViewModel @Inject constructor(
 data class NoteEditUiState(
     val noteId: Long = -1L,
     val title: String = "",
-    val content: String = "",
+    val contentField: TextFieldValue = TextFieldValue(""),
     val category: String = "其他",
     val mediaItems: List<MediaItem> = emptyList()
-)
+) {
+    // 向后兼容性：从TextFieldValue获取纯文本内容
+    val content: String get() = contentField.text
+}
