@@ -123,6 +123,10 @@ class NoteEditViewModel @Inject constructor(
     }
 
     fun addMediaItem(mediaItem: MediaItem) {
+        addMediaItemAtCurrentPosition(mediaItem)
+    }
+
+    fun addMediaItemAtCurrentPosition(mediaItem: MediaItem) {
         val currentItems = _uiState.value.mediaItems.toMutableList()
         currentItems.add(mediaItem)
         
@@ -263,6 +267,50 @@ class NoteEditViewModel @Inject constructor(
             }
             onSaved?.invoke()
         }
+    }
+    
+    // 移动光标到媒体结束位置（媒体下一行开头）
+    fun moveCursorToMediaEnd(mediaItem: MediaItem) {
+        val currentState = _uiState.value
+        val currentText = currentState.contentField.text
+        
+        // 简化版本：将光标移动到文本末尾
+        // 在实际应用中，这里需要计算媒体项目在文本中的实际位置
+        val newSelection = TextRange(currentText.length)
+        val newTextFieldValue = currentState.contentField.copy(selection = newSelection)
+        
+        _uiState.value = currentState.copy(contentField = newTextFieldValue)
+    }
+    
+    // 在当前光标位置插入媒体的标记文本
+    fun insertMediaAtCursor(mediaItem: MediaItem) {
+        val currentState = _uiState.value
+        val currentTextFieldValue = currentState.contentField
+        val cursorPosition = currentTextFieldValue.selection.start
+        
+        // 插入媒体标记（简化版本）
+        val beforeCursor = currentTextFieldValue.text.substring(0, cursorPosition)
+        val afterCursor = currentTextFieldValue.text.substring(cursorPosition)
+        val mediaPlaceholder = when (mediaItem.type) {
+            MediaType.IMAGE -> "\n[图片]\n"
+            MediaType.AUDIO -> "\n[音频]\n"
+        }
+        
+        val newText = beforeCursor + mediaPlaceholder + afterCursor
+        val newCursorPosition = cursorPosition + mediaPlaceholder.length
+        val newTextFieldValue = TextFieldValue(
+            text = newText,
+            selection = TextRange(newCursorPosition)
+        )
+        
+        // 同时更新媒体项目列表
+        val updatedMediaItems = currentState.mediaItems.toMutableList()
+        updatedMediaItems.add(mediaItem)
+        
+        _uiState.value = currentState.copy(
+            contentField = newTextFieldValue,
+            mediaItems = updatedMediaItems
+        )
     }
     
     fun saveAndExit(onNavigateBack: () -> Unit) {
