@@ -19,7 +19,7 @@
     <string name="storage_permission_required">需要存储权限来保存文件</string>
     <string name="camera_permission_required">需要相机权限来拍照</string>
     <string name="grant_permission">授权</string>
-    <string name="title_hint">标题</string>
+    <string name="title_hint">无标题</string>
     <string name="content_hint">开始记录你的想法...</string>
     <string name="image_placeholder">[图片]</string>
     <string name="audio_placeholder">[音频]</string>

@@ -43,7 +43,7 @@ object FileUtils {
     }
     
     /**
-     * 保存音频到应用私有目录
+     * 保存音频到应用私有目录（从文件路径）
      */
     fun saveAudioToPrivateStorage(context: Context, sourcePath: String): String? {
         return try {
@@ -57,6 +57,32 @@ object FileUtils {
             val sourceFile = File(sourcePath)
             
             sourceFile.copyTo(audioFile, true)
+            audioFile.absolutePath
+        } catch (e: IOException) {
+            e.printStackTrace()
+            null
+        }
+    }
+    
+    /**
+     * 保存音频到应用私有目录（从Uri）
+     */
+    fun saveAudioToPrivateStorage(context: Context, uri: Uri): String? {
+        return try {
+            val inputStream = context.contentResolver.openInputStream(uri)
+            val filename = "audio_${UUID.randomUUID()}.m4a"
+            val file = File(context.filesDir, "audios")
+            if (!file.exists()) {
+                file.mkdirs()
+            }
+            
+            val audioFile = File(file, filename)
+            val outputStream = FileOutputStream(audioFile)
+            
+            inputStream?.copyTo(outputStream)
+            inputStream?.close()
+            outputStream.close()
+            
             audioFile.absolutePath
         } catch (e: IOException) {
             e.printStackTrace()

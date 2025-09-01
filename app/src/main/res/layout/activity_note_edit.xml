@@ -42,9 +42,19 @@
                 android:textStyle="bold"
                 android:textColor="@color/primary_text"
                 android:textColorHint="@color/secondary_text"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="8dp"
                 android:inputType="textCapSentences|textMultiLine"
                 android:maxLines="2" />
+
+            <TextView
+                android:id="@+id/tvModifiedTime"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:textSize="12sp"
+                android:textColor="@color/secondary_text"
+                android:visibility="gone"
+                tools:text="修改于 2024-01-01 12:00" />
 
             <View
                 android:layout_width="match_parent"

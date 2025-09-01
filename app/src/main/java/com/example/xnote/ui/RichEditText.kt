@@ -340,7 +340,7 @@ class AudioMediaSpan(
     }
     
     override fun getDisplaySize(): Pair<Int, Int> {
-        return Pair(300, 60)
+        return Pair(400, 80)
     }
     
     override fun draw(
@@ -360,15 +360,15 @@ class AudioMediaSpan(
         // 绘制音频背景
         this.paint.style = Paint.Style.FILL
         this.paint.color = Color.parseColor("#FFF3E0")
-        canvas.drawRoundRect(0f, 0f, 300f, 60f, 8f, 8f, this.paint)
+        canvas.drawRoundRect(0f, 0f, 400f, 80f, 10f, 10f, this.paint)
         
         // 绘制播放按钮
         this.paint.color = Color.parseColor("#FF9800")
-        val centerY = 30f
+        val centerY = 40f
         val playButton = Path().apply {
-            moveTo(20f, centerY - 10f)
-            lineTo(40f, centerY)
-            lineTo(20f, centerY + 10f)
+            moveTo(25f, centerY - 15f)
+            lineTo(50f, centerY)
+            lineTo(25f, centerY + 15f)
             close()
         }
         canvas.drawPath(playButton, this.paint)
@@ -376,9 +376,10 @@ class AudioMediaSpan(
         // 绘制时长
         this.paint.color = Color.BLACK
         this.paint.style = Paint.Style.FILL
+        this.paint.textSize = 16f * context.resources.displayMetrics.density
         val duration = block.duration ?: 0
         val durationText = String.format("%02d:%02d", duration / 60, duration % 60)
-        canvas.drawText(durationText, 60f, centerY + 5f, this.paint)
+        canvas.drawText(durationText, 80f, centerY + 6f, this.paint)
         
         // 绘制波形线（简化）
         this.paint.strokeWidth = 2f

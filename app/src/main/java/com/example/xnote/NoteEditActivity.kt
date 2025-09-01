@@ -69,6 +69,10 @@ class NoteEditActivity : AppCompatActivity() {
         }
     }
     
+    private val pickAudioLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { handleAudioSelected(it) } }
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityNoteEditBinding.inflate(layoutInflater)
@@ -108,7 +112,7 @@ class NoteEditActivity : AppCompatActivity() {
             if (isRecording) {
                 stopRecording()
             } else {
-                startRecording()
+                showAudioOptions()
             }
         }
         
@@ -137,6 +141,17 @@ class NoteEditActivity : AppCompatActivity() {
                 // 自动保存标题
             }
         })
+        
+        // 标题回车键监听
+        binding.editTitle.setOnKeyListener { _, keyCode, event ->
+            if (keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN) {
+                binding.richEditText.requestFocus()
+                binding.richEditText.setSelection(0)
+                true
+            } else {
+                false
+            }
+        }
     }
     
     private fun loadNote() {
@@ -147,6 +162,7 @@ class NoteEditActivity : AppCompatActivity() {
                     binding.editTitle.setText(note.note.title)
                     binding.richEditText.loadFromBlocks(note.blocks)
                     binding.toolbar.title = if (note.note.title.isEmpty()) "编辑记事" else note.note.title
+                    updateModifiedTime(note.note.updatedAt)
                 }
             } catch (e: Exception) {
                 Toast.makeText(this@NoteEditActivity, "加载记事失败", Toast.LENGTH_SHORT).show()
@@ -166,6 +182,8 @@ class NoteEditActivity : AppCompatActivity() {
                     is NoteEditViewModel.SaveState.Success -> {
                         binding.tvStatus.text = "已保存"
                         binding.tvStatus.visibility = View.VISIBLE
+                        // 更新修改时间
+                        updateModifiedTime(System.currentTimeMillis())
                         // 1秒后隐藏状态
                         Handler(Looper.getMainLooper()).postDelayed({
                             binding.tvStatus.visibility = View.GONE
@@ -192,6 +210,13 @@ class NoteEditActivity : AppCompatActivity() {
         }
     }
     
+    private fun updateModifiedTime(timestamp: Long) {
+        val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        val formattedTime = formatter.format(Date(timestamp))
+        binding.tvModifiedTime.text = "修改于 $formattedTime"
+        binding.tvModifiedTime.visibility = View.VISIBLE
+    }
+    
     private fun showImageOptions() {
         val options = arrayOf("相册选择", "拍照")
         AlertDialog.Builder(this)
@@ -200,6 +225,19 @@ class NoteEditActivity : AppCompatActivity() {
                 when (which) {
                     0 -> selectImageFromGallery()
                     1 -> takePhoto()
+                }
+            }
+            .show()
+    }
+    
+    private fun showAudioOptions() {
+        val options = arrayOf("选择音频文件", "录音")
+        AlertDialog.Builder(this)
+            .setTitle("添加音频")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> selectAudioFromFiles()
+                    1 -> startRecording()
                 }
             }
             .show()
@@ -220,6 +258,38 @@ class NoteEditActivity : AppCompatActivity() {
             }
         } else {
             PermissionUtils.requestCameraPermission(this)
+        }
+    }
+    
+    private fun selectAudioFromFiles() {
+        if (PermissionUtils.hasStoragePermission(this)) {
+            pickAudioLauncher.launch("audio/*")
+        } else {
+            PermissionUtils.requestStoragePermission(this)
+        }
+    }
+    
+    private fun handleAudioSelected(uri: Uri) {
+        lifecycleScope.launch {
+            try {
+                val filePath = FileUtils.saveAudioToPrivateStorage(this@NoteEditActivity, uri)
+                if (filePath != null) {
+                    val duration = FileUtils.getAudioDuration(filePath)
+                    val block = NoteBlock(
+                        id = UUID.randomUUID().toString(),
+                        noteId = noteId,
+                        type = BlockType.AUDIO,
+                        order = 0,
+                        url = filePath,
+                        duration = duration
+                    )
+                    binding.richEditText.insertAudio(block)
+                } else {
+                    Toast.makeText(this@NoteEditActivity, "音频保存失败", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this@NoteEditActivity, "处理音频失败", Toast.LENGTH_SHORT).show()
+            }
         }
     }
     
