@@ -219,28 +219,50 @@ class NoteEditActivity : AppCompatActivity() {
     
     private fun showImageOptions() {
         val options = arrayOf("相册选择", "拍照")
-        AlertDialog.Builder(this)
-            .setTitle("添加图片")
+        val dialog = AlertDialog.Builder(this)
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> selectImageFromGallery()
                     1 -> takePhoto()
                 }
             }
-            .show()
+            .create()
+        
+        dialog.setOnShowListener {
+            dialog.listView?.let { listView ->
+                for (i in 0 until listView.count) {
+                    val textView = listView.getChildAt(i) as? android.widget.TextView
+                    textView?.textSize = 18f
+                    textView?.setPadding(48, 32, 48, 32)
+                }
+            }
+        }
+        
+        dialog.show()
     }
     
     private fun showAudioOptions() {
         val options = arrayOf("选择音频文件", "录音")
-        AlertDialog.Builder(this)
-            .setTitle("添加音频")
+        val dialog = AlertDialog.Builder(this)
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> selectAudioFromFiles()
                     1 -> startRecording()
                 }
             }
-            .show()
+            .create()
+        
+        dialog.setOnShowListener {
+            dialog.listView?.let { listView ->
+                for (i in 0 until listView.count) {
+                    val textView = listView.getChildAt(i) as? android.widget.TextView
+                    textView?.textSize = 18f
+                    textView?.setPadding(48, 32, 48, 32)
+                }
+            }
+        }
+        
+        dialog.show()
     }
     
     private fun selectImageFromGallery() {
