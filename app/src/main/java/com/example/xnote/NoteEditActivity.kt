@@ -96,9 +96,9 @@ class NoteEditActivity : AppCompatActivity() {
     }
     
     private fun setupUI() {
-        binding.toolbar.setNavigationOnClickListener {
-            finish()
-        }
+       //./ binding.toolbar.setNavigationOnClickListener {
+         //   finish()
+       // }
         
         binding.btnSave.setOnClickListener {
             saveNote()
@@ -161,7 +161,7 @@ class NoteEditActivity : AppCompatActivity() {
                 currentNote?.let { note ->
                     binding.editTitle.setText(note.note.title)
                     binding.richEditText.loadFromBlocks(note.blocks)
-                    binding.toolbar.title = if (note.note.title.isEmpty()) "编辑记事" else note.note.title
+                //./    binding.toolbar.title = if (note.note.title.isEmpty()) "编辑记事" else note.note.title
                     updateModifiedTime(note.note.updatedAt)
                 }
             } catch (e: Exception) {
