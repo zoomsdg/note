@@ -94,3 +94,10 @@ Thumbs.db
 gradle/
 app/src/main/assets/private/
 app/src/main/res/raw/private_*
+
+
+#//./
+build-tools/
+licenses/
+platform-tools/
+platforms/
