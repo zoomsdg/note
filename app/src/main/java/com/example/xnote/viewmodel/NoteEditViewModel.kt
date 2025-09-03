@@ -84,6 +84,10 @@ class NoteEditViewModel(
         return repository.createCategory(categoryName)
     }
     
+    suspend fun getCategoryById(categoryId: String): Category? {
+        return repository.getCategoryById(categoryId)
+    }
+    
     suspend fun deleteNote(noteId: String): Boolean {
         return try {
             repository.deleteNote(noteId)

@@ -179,6 +179,7 @@ class NoteEditActivity : AppCompatActivity() {
                     binding.richEditText.loadFromBlocks(note.blocks)
                 //./    binding.toolbar.title = if (note.note.title.isEmpty()) "编辑记事" else note.note.title
                     updateModifiedTime(note.note.updatedAt)
+                    updateCategoryDisplay()
                 }
             } catch (e: Exception) {
                 Toast.makeText(this@NoteEditActivity, "加载记事失败", Toast.LENGTH_SHORT).show()
@@ -237,6 +238,22 @@ class NoteEditActivity : AppCompatActivity() {
         binding.tvModifiedTime.visibility = View.VISIBLE
     }
     
+    private fun updateCategoryDisplay() {
+        lifecycleScope.launch {
+            try {
+                val category = viewModel.getCategoryById(currentCategoryId)
+                if (category != null) {
+                    binding.tvCategoryTag.text = category.name
+                    binding.tvCategoryTag.visibility = View.VISIBLE
+                } else {
+                    binding.tvCategoryTag.visibility = View.GONE
+                }
+            } catch (e: Exception) {
+                binding.tvCategoryTag.visibility = View.GONE
+            }
+        }
+    }
+    
     private fun checkContentChanged(): Boolean {
         val currentTitle = binding.editTitle.text.toString()
         val currentBlocks = binding.richEditText.toBlocks()
@@ -272,6 +289,33 @@ class NoteEditActivity : AppCompatActivity() {
         }
         
         return false
+    }
+    
+    private fun isContentEmpty(): Boolean {
+        val title = binding.editTitle.text.toString().trim()
+        val blocks = binding.richEditText.toBlocks()
+        
+        // 如果标题不为空，认为有内容
+        if (title.isNotEmpty()) {
+            return false
+        }
+        
+        // 检查所有文本块是否为空
+        for (block in blocks) {
+            when (block.type) {
+                BlockType.TEXT -> {
+                    if (!block.text.isNullOrBlank()) {
+                        return false
+                    }
+                }
+                BlockType.IMAGE, BlockType.AUDIO -> {
+                    // 有媒体文件就认为有内容
+                    return false
+                }
+            }
+        }
+        
+        return true
     }
     
     private fun showImageOptions() {
@@ -525,10 +569,7 @@ class NoteEditActivity : AppCompatActivity() {
     
     override fun onPause() {
         super.onPause()
-        // 只有当内容有变更时才保存
-        if (checkContentChanged()) {
-            saveNote()
-        }
+        handleNoteBeforeExit()
         if (isRecording) {
             stopRecording()
         }
@@ -537,11 +578,24 @@ class NoteEditActivity : AppCompatActivity() {
     
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        // 只有当内容有变更时才保存
-        if (checkContentChanged()) {
+        handleNoteBeforeExit()
+        super.onBackPressed()
+    }
+    
+    private fun handleNoteBeforeExit() {
+        if (isContentEmpty()) {
+            // 内容为空，删除记事
+            lifecycleScope.launch {
+                try {
+                    viewModel.deleteNote(noteId)
+                } catch (e: Exception) {
+                    // 静默处理删除失败
+                }
+            }
+        } else if (checkContentChanged()) {
+            // 有内容且有变更，保存记事
             saveNote()
         }
-        super.onBackPressed()
     }
     
     private fun showCategoryDialog() {
@@ -571,6 +625,7 @@ class NoteEditActivity : AppCompatActivity() {
                             val selectedCategory = categories[which]
                             currentCategoryId = selectedCategory.id
                             hasContentChanged = true
+                            updateCategoryDisplay()
                             dialog.dismiss()
                             Toast.makeText(this@NoteEditActivity, "已设置分类: ${selectedCategory.name}", Toast.LENGTH_SHORT).show()
                         }
@@ -611,6 +666,7 @@ class NoteEditActivity : AppCompatActivity() {
                 val newCategoryId = viewModel.createCategory(categoryName)
                 currentCategoryId = newCategoryId
                 hasContentChanged = true
+                updateCategoryDisplay()
                 Toast.makeText(this@NoteEditActivity, "已创建并设置分类: $categoryName", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Toast.makeText(this@NoteEditActivity, "创建分类失败", Toast.LENGTH_SHORT).show()

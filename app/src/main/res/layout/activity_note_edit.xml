@@ -58,11 +58,24 @@
                 android:id="@+id/tvModifiedTime"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="8dp"
                 android:textSize="12sp"
                 android:textColor="@color/secondary_text"
                 android:visibility="gone"
                 tools:text="修改于 2024-01-01 12:00" />
+
+            <TextView
+                android:id="@+id/tvCategoryTag"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:background="@drawable/bg_tag"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp"
+                android:textSize="11sp"
+                android:textColor="@color/white"
+                android:visibility="gone"
+                tools:text="日常" />
 
             <View
                 android:layout_width="match_parent"
