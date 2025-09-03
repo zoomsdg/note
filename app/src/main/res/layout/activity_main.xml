@@ -11,12 +11,14 @@
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="1dp"
+        android:layout_height="?attr/actionBarSize"
         android:background="@color/accent_color"
         app:title="@string/app_name"
         app:titleTextColor="@color/white"
         app:layout_constraintTop_toTopOf="parent" />
-        <!-- android:layout_height="?attr/actionBarSize" //./-->
+        <!-- 
+        android:layout_height="1dp"
+        android:layout_height="?attr/actionBarSize" //./-->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
         android:layout_width="match_parent"
@@ -38,6 +40,70 @@
         app:tint="@color/white"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />
+
+    <!-- 删除模式的底部操作栏 -->
+    <LinearLayout
+        android:id="@+id/deleteActionBar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:background="@color/accent_color"
+        android:elevation="8dp"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <Button
+            android:id="@+id/btnSelectAll"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="全选"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:background="@android:color/transparent"
+            android:minHeight="48dp"
+            style="?android:attr/borderlessButtonStyle" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="32dp"
+            android:background="@color/white"
+            android:alpha="0.3" />
+
+        <Button
+            android:id="@+id/btnDeselectAll"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="取消全选"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:background="@android:color/transparent"
+            android:minHeight="48dp"
+            style="?android:attr/borderlessButtonStyle" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="32dp"
+            android:background="@color/white"
+            android:alpha="0.3" />
+
+        <Button
+            android:id="@+id/btnDeleteSelected"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="删除"
+            android:textColor="@android:color/holo_red_light"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:background="@android:color/transparent"
+            android:minHeight="48dp"
+            style="?android:attr/borderlessButtonStyle" />
+
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/emptyLayout"

@@ -36,6 +36,14 @@ class MainViewModel(
     suspend fun deleteNote(noteId: String) {
         repository.deleteNote(noteId)
     }
+    
+    suspend fun deleteNotes(noteIds: Set<String>) {
+        viewModelScope.launch {
+            noteIds.forEach { noteId ->
+                repository.deleteNote(noteId)
+            }
+        }
+    }
 }
 
 class MainViewModelFactory(
