@@ -44,6 +44,9 @@ class NoteEditActivity : AppCompatActivity() {
     private lateinit var binding: ActivityNoteEditBinding
     private lateinit var noteId: String
     private var currentNote: FullNote? = null
+    private var initialTitle: String = ""
+    private var initialBlocks: List<NoteBlock> = emptyList()
+    private var hasContentChanged = false
     
     private val viewModel: NoteEditViewModel by viewModels {
         NoteEditViewModelFactory(NoteRepository(this))
@@ -125,8 +128,9 @@ class NoteEditActivity : AppCompatActivity() {
         }
         
         // 富文本编辑器设置
-        binding.richEditText.setOnContentChangedListener { blocks ->
+        binding.richEditText.setOnContentChangedListener { _ ->
             // 内容变更时的处理
+            hasContentChanged = true
         }
         
         binding.richEditText.setOnMediaClickListener { block ->
@@ -138,7 +142,8 @@ class NoteEditActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: android.text.Editable?) {
-                // 自动保存标题
+                // 标题内容有变更
+                hasContentChanged = true
             }
         })
         
@@ -159,6 +164,10 @@ class NoteEditActivity : AppCompatActivity() {
             try {
                 currentNote = viewModel.loadNote(noteId)
                 currentNote?.let { note ->
+                    // 记录初始状态
+                    initialTitle = note.note.title
+                    initialBlocks = note.blocks.toList()
+                    
                     binding.editTitle.setText(note.note.title)
                     binding.richEditText.loadFromBlocks(note.blocks)
                 //./    binding.toolbar.title = if (note.note.title.isEmpty()) "编辑记事" else note.note.title
@@ -184,6 +193,10 @@ class NoteEditActivity : AppCompatActivity() {
                         binding.tvStatus.visibility = View.VISIBLE
                         // 更新修改时间
                         updateModifiedTime(System.currentTimeMillis())
+                        // 重置变更标记和初始状态
+                        hasContentChanged = false
+                        initialTitle = binding.editTitle.text.toString()
+                        initialBlocks = binding.richEditText.toBlocks()
                         // 1秒后隐藏状态
                         Handler(Looper.getMainLooper()).postDelayed({
                             binding.tvStatus.visibility = View.GONE
@@ -215,6 +228,43 @@ class NoteEditActivity : AppCompatActivity() {
         val formattedTime = formatter.format(Date(timestamp))
         binding.tvModifiedTime.text = "修改于 $formattedTime"
         binding.tvModifiedTime.visibility = View.VISIBLE
+    }
+    
+    private fun checkContentChanged(): Boolean {
+        val currentTitle = binding.editTitle.text.toString()
+        val currentBlocks = binding.richEditText.toBlocks()
+        
+        // 检查标题是否改变
+        if (currentTitle != initialTitle) {
+            return true
+        }
+        
+        // 检查块数量是否改变
+        if (currentBlocks.size != initialBlocks.size) {
+            return true
+        }
+        
+        // 检查每个块是否改变
+        for (i in currentBlocks.indices) {
+            val current = currentBlocks[i]
+            val initial = initialBlocks.getOrNull(i)
+            
+            if (initial == null) return true
+            
+            // 比较块的关键属性
+            if (current.type != initial.type ||
+                current.text != initial.text ||
+                current.url != initial.url ||
+                current.order != initial.order ||
+                current.alt != initial.alt ||
+                current.duration != initial.duration ||
+                current.width != initial.width ||
+                current.height != initial.height) {
+                return true
+            }
+        }
+        
+        return false
     }
     
     private fun showImageOptions() {
@@ -468,11 +518,23 @@ class NoteEditActivity : AppCompatActivity() {
     
     override fun onPause() {
         super.onPause()
-        saveNote()
+        // 只有当内容有变更时才保存
+        if (checkContentChanged()) {
+            saveNote()
+        }
         if (isRecording) {
             stopRecording()
         }
         audioPlayer.pause()
+    }
+    
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        // 只有当内容有变更时才保存
+        if (checkContentChanged()) {
+            saveNote()
+        }
+        super.onBackPressed()
     }
     
     override fun onDestroy() {
