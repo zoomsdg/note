@@ -81,10 +81,12 @@
                 android:textColorHint="@color/secondary_text"
                 android:gravity="top"
                 android:inputType="textCapSentences|textMultiLine"
-                android:minHeight="300dp"
+                android:minHeight="600dp"
                 android:scrollbars="vertical"
-                android:lineSpacingExtra="6dp"/>
+                android:lineSpacingExtra="6dp"
+                app:layout_constraintBottom_toBottomOf="parent"/>
 <!--
+                android:layout_height="wrap_content"
                 android:lineSpacingMultiplier="1.25" />   //./
 -->
         </LinearLayout>

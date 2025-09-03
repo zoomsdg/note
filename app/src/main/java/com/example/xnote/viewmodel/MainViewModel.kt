@@ -31,7 +31,8 @@ class MainViewModel(
         }
     }
     
-    suspend fun createNewNote(title: String = "无标题"): String {
+    //./suspend fun createNewNote(title: String = "无标题"): String {
+    suspend fun createNewNote(title: String = ""): String {
         return repository.createNewNote(title)
     }
     
