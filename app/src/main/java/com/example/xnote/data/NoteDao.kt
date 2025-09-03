@@ -24,7 +24,8 @@ interface NoteDao {
         n.title as title,
         COALESCE(GROUP_CONCAT(CASE WHEN b.type = 'TEXT' THEN b.text ELSE '' END, ' '), '') as preview,
         n.updatedAt as lastModified,
-        COUNT(b.id) as blockCount
+        COUNT(b.id) as blockCount,
+        n.categoryId as categoryId
         FROM notes n 
         LEFT JOIN note_blocks b ON n.id = b.noteId 
         GROUP BY n.id 

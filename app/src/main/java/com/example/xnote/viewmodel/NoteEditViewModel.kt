@@ -3,6 +3,7 @@ package com.example.xnote.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.xnote.data.Category
 import com.example.xnote.data.FullNote
 import com.example.xnote.data.Note
 import com.example.xnote.data.NoteBlock
@@ -35,7 +36,7 @@ class NoteEditViewModel(
         }
     }
     
-    fun saveNote(noteId: String, title: String, blocks: List<NoteBlock>) {
+    fun saveNote(noteId: String, title: String, blocks: List<NoteBlock>, categoryId: String = "daily") {
         viewModelScope.launch {
             try {
                 _saveState.value = SaveState.Saving
@@ -43,6 +44,7 @@ class NoteEditViewModel(
                 val note = Note(
                     id = noteId,
                     title = title,
+                    categoryId = categoryId,
                     updatedAt = System.currentTimeMillis()
                 )
                 
@@ -63,6 +65,23 @@ class NoteEditViewModel(
                 _saveState.value = SaveState.Error("保存失败: ${e.message}")
             }
         }
+    }
+    
+    suspend fun getAllCategories(): List<Category> {
+        return try {
+            repository.getAllCategoriesOnce()
+        } catch (e: Exception) {
+            // 返回默认分类
+            listOf(
+                Category("daily", "日常", true),
+                Category("work", "工作", true), 
+                Category("thoughts", "感悟", true)
+            )
+        }
+    }
+    
+    suspend fun createCategory(categoryName: String): String {
+        return repository.createCategory(categoryName)
     }
     
     suspend fun deleteNote(noteId: String): Boolean {

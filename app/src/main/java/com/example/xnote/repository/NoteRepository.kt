@@ -13,7 +13,9 @@ import java.util.UUID
  */
 class NoteRepository(val context: Context) {
     
-    private val noteDao = NoteDatabase.getDatabase(context).noteDao()
+    private val database = NoteDatabase.getDatabase(context)
+    private val noteDao = database.noteDao()
+    private val categoryDao = database.categoryDao()
     
     fun getAllNotes(): Flow<List<Note>> = noteDao.getAllNotes()
     
@@ -36,6 +38,7 @@ class NoteRepository(val context: Context) {
         val note = Note(
             id = noteId,
             title = title,
+            categoryId = "daily", // 默认分类为日常
             createdAt = System.currentTimeMillis(),
             updatedAt = System.currentTimeMillis()
         )
@@ -167,5 +170,31 @@ class NoteRepository(val context: Context) {
         
         // 批量插入块
         blocks.forEach { noteDao.insertBlock(it) }
+    }
+    
+    // 分类相关方法
+    fun getAllCategories(): Flow<List<Category>> = categoryDao.getAllCategories()
+    
+    suspend fun getAllCategoriesOnce(): List<Category> = categoryDao.getAllCategoriesOnce()
+    
+    suspend fun getCategoryById(categoryId: String): Category? = categoryDao.getCategoryById(categoryId)
+    
+    suspend fun createCategory(categoryName: String): String {
+        val categoryId = UUID.randomUUID().toString()
+        val category = Category(
+            id = categoryId,
+            name = categoryName,
+            isDefault = false,
+            createdAt = System.currentTimeMillis()
+        )
+        categoryDao.insertCategory(category)
+        return categoryId
+    }
+    
+    suspend fun updateNoteCategory(noteId: String, categoryId: String) {
+        val note = getNoteById(noteId)
+        if (note != null) {
+            updateNote(note.copy(categoryId = categoryId, updatedAt = System.currentTimeMillis()))
+        }
     }
 }

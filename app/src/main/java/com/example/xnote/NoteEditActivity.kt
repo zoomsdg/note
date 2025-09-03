@@ -22,6 +22,7 @@ import androidx.lifecycle.lifecycleScope
 import com.example.xnote.audio.AudioPlayer
 import com.example.xnote.audio.AudioRecorder
 import com.example.xnote.data.BlockType
+import com.example.xnote.data.Category
 import com.example.xnote.data.FullNote
 import com.example.xnote.data.NoteBlock
 import com.example.xnote.databinding.ActivityNoteEditBinding
@@ -47,6 +48,7 @@ class NoteEditActivity : AppCompatActivity() {
     private var initialTitle: String = ""
     private var initialBlocks: List<NoteBlock> = emptyList()
     private var hasContentChanged = false
+    private var currentCategoryId: String = "daily"
     
     private val viewModel: NoteEditViewModel by viewModels {
         NoteEditViewModelFactory(NoteRepository(this))
@@ -102,6 +104,10 @@ class NoteEditActivity : AppCompatActivity() {
        //./ binding.toolbar.setNavigationOnClickListener {
          //   finish()
        // }
+        
+        binding.btnCategory.setOnClickListener {
+            showCategoryDialog()
+        }
         
         binding.btnSave.setOnClickListener {
             saveNote()
@@ -167,6 +173,7 @@ class NoteEditActivity : AppCompatActivity() {
                     // 记录初始状态
                     initialTitle = note.note.title
                     initialBlocks = note.blocks.toList()
+                    currentCategoryId = note.note.categoryId
                     
                     binding.editTitle.setText(note.note.title)
                     binding.richEditText.loadFromBlocks(note.blocks)
@@ -219,7 +226,7 @@ class NoteEditActivity : AppCompatActivity() {
         val blocks = binding.richEditText.toBlocks()
         
         lifecycleScope.launch {
-            viewModel.saveNote(noteId, title, blocks)
+            viewModel.saveNote(noteId, title, blocks, currentCategoryId)
         }
     }
     
@@ -535,6 +542,80 @@ class NoteEditActivity : AppCompatActivity() {
             saveNote()
         }
         super.onBackPressed()
+    }
+    
+    private fun showCategoryDialog() {
+        lifecycleScope.launch {
+            try {
+                val categories = viewModel.getAllCategories()
+                val categoryNames = categories.map { it.name }.toMutableList()
+                categoryNames.add("+ 自定义分类")
+                
+                // 找到当前分类的索引
+                val currentCategory = categories.find { it.id == currentCategoryId }
+                val currentIndex = if (currentCategory != null) {
+                    categories.indexOf(currentCategory)
+                } else {
+                    0 // 默认选择第一个
+                }
+                
+                AlertDialog.Builder(this@NoteEditActivity)
+                    .setTitle("选择分类")
+                    .setSingleChoiceItems(categoryNames.toTypedArray(), currentIndex) { dialog, which ->
+                        if (which == categoryNames.size - 1) {
+                            // 选择了"自定义分类"
+                            dialog.dismiss()
+                            showAddCategoryDialog()
+                        } else {
+                            // 选择了现有分类
+                            val selectedCategory = categories[which]
+                            currentCategoryId = selectedCategory.id
+                            hasContentChanged = true
+                            dialog.dismiss()
+                            Toast.makeText(this@NoteEditActivity, "已设置分类: ${selectedCategory.name}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    .setNegativeButton("取消", null)
+                    .show()
+                    
+            } catch (e: Exception) {
+                Toast.makeText(this@NoteEditActivity, "加载分类失败", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
+    private fun showAddCategoryDialog() {
+        val editText = android.widget.EditText(this).apply {
+            hint = "输入新分类名称"
+            maxLines = 1
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle("新建分类")
+            .setView(editText)
+            .setPositiveButton("创建") { _, _ ->
+                val categoryName = editText.text.toString().trim()
+                if (categoryName.isNotEmpty()) {
+                    createNewCategory(categoryName)
+                } else {
+                    Toast.makeText(this, "分类名称不能为空", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    private fun createNewCategory(categoryName: String) {
+        lifecycleScope.launch {
+            try {
+                val newCategoryId = viewModel.createCategory(categoryName)
+                currentCategoryId = newCategoryId
+                hasContentChanged = true
+                Toast.makeText(this@NoteEditActivity, "已创建并设置分类: $categoryName", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this@NoteEditActivity, "创建分类失败", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
     
     override fun onDestroy() {

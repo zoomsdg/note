@@ -13,6 +13,8 @@ data class Note(
     
     val title: String,
     
+    val categoryId: String = "daily",
+    
     val createdAt: Long = System.currentTimeMillis(),
     
     val updatedAt: Long = System.currentTimeMillis(),
@@ -36,5 +38,6 @@ data class NoteSummary(
     val title: String,
     val preview: String,
     val lastModified: Long,
-    val blockCount: Int
+    val blockCount: Int,
+    val categoryId: String = "daily"
 )
