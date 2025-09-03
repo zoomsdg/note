@@ -78,4 +78,10 @@ interface NoteDao {
             deleteBlocksByNoteId(noteId)
         }
     }
+    
+    @Query("DELETE FROM notes")
+    suspend fun deleteAllNotes()
+    
+    @Query("DELETE FROM note_blocks")
+    suspend fun deleteAllBlocks()
 }

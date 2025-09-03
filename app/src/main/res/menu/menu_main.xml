@@ -3,6 +3,16 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/action_export"
+        android:title="导出"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_import"
+        android:title="导入"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_delete_mode"
         android:title="删除"
         android:icon="@drawable/ic_delete"
@@ -14,5 +24,11 @@
         android:icon="@drawable/ic_close"
         android:visible="false"
         app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_export_selected"
+        android:title="导出选中"
+        android:visible="false"
+        app:showAsAction="never" />
 
 </menu>

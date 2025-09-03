@@ -2,13 +2,16 @@ package com.example.xnote.repository
 
 import android.content.Context
 import com.example.xnote.data.*
+import com.example.xnote.utils.ExportImportUtils
+import com.example.xnote.utils.FileUtils
 import kotlinx.coroutines.flow.Flow
+import java.io.File
 import java.util.UUID
 
 /**
  * 记事仓库
  */
-class NoteRepository(context: Context) {
+class NoteRepository(val context: Context) {
     
     private val noteDao = NoteDatabase.getDatabase(context).noteDao()
     
@@ -84,5 +87,85 @@ class NoteRepository(context: Context) {
     
     suspend fun deleteBlock(blockId: String) {
         noteDao.deleteBlock(blockId)
+    }
+    
+    suspend fun deleteAllNotes() {
+        noteDao.deleteAllNotes()
+        noteDao.deleteAllBlocks()
+    }
+    
+    suspend fun importNote(importNote: ExportImportUtils.ImportNote) {
+        // 创建新的记事
+        val note = Note(
+            id = UUID.randomUUID().toString(), // 生成新的ID避免冲突
+            title = importNote.title,
+            createdAt = importNote.createdAt,
+            updatedAt = System.currentTimeMillis(), // 更新为当前时间
+            version = 1
+        )
+        
+        noteDao.insertNote(note)
+        
+        // 导入记事块
+        val blocks = mutableListOf<NoteBlock>()
+        for (importBlock in importNote.blocks) {
+            val block = when (importBlock.type) {
+                BlockType.TEXT -> NoteBlock(
+                    id = UUID.randomUUID().toString(),
+                    noteId = note.id,
+                    type = importBlock.type,
+                    order = importBlock.order,
+                    text = importBlock.text
+                )
+                BlockType.IMAGE -> {
+                    var filePath: String? = null
+                    
+                    // 复制媒体文件到应用私有目录
+                    if (importBlock.mediaFile?.exists() == true) {
+                        val fileName = "imported_image_${System.currentTimeMillis()}_${importBlock.mediaFile.name}"
+                        val targetFile = File(context.filesDir, "images/$fileName")
+                        targetFile.parentFile?.mkdirs()
+                        importBlock.mediaFile.copyTo(targetFile, overwrite = true)
+                        filePath = targetFile.absolutePath
+                    }
+                    
+                    NoteBlock(
+                        id = UUID.randomUUID().toString(),
+                        noteId = note.id,
+                        type = importBlock.type,
+                        order = importBlock.order,
+                        url = filePath,
+                        alt = importBlock.alt,
+                        width = importBlock.width,
+                        height = importBlock.height
+                    )
+                }
+                BlockType.AUDIO -> {
+                    var filePath: String? = null
+                    
+                    // 复制媒体文件到应用私有目录
+                    if (importBlock.mediaFile?.exists() == true) {
+                        val fileName = "imported_audio_${System.currentTimeMillis()}_${importBlock.mediaFile.name}"
+                        val targetFile = File(context.filesDir, "audio/$fileName")
+                        targetFile.parentFile?.mkdirs()
+                        importBlock.mediaFile.copyTo(targetFile, overwrite = true)
+                        filePath = targetFile.absolutePath
+                    }
+                    
+                    NoteBlock(
+                        id = UUID.randomUUID().toString(),
+                        noteId = note.id,
+                        type = importBlock.type,
+                        order = importBlock.order,
+                        url = filePath,
+                        duration = importBlock.duration
+                    )
+                }
+            }
+            blocks.add(block)
+        }
+        
+        // 批量插入块
+        blocks.forEach { noteDao.insertBlock(it) }
     }
 }

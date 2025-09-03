@@ -1,10 +1,14 @@
 package com.example.xnote
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.EditText
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -17,6 +21,7 @@ import com.example.xnote.repository.NoteRepository
 import com.example.xnote.viewmodel.MainViewModel
 import com.example.xnote.viewmodel.MainViewModelFactory
 import kotlinx.coroutines.launch
+import java.io.File
 
 class MainActivity : AppCompatActivity() {
     
@@ -25,6 +30,12 @@ class MainActivity : AppCompatActivity() {
     private var isDeleteMode = false
     private val viewModel: MainViewModel by viewModels {
         MainViewModelFactory(NoteRepository(this))
+    }
+    
+    private val importFileLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { handleImportFile(it) }
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -119,11 +130,26 @@ class MainActivity : AppCompatActivity() {
     override fun onPrepareOptionsMenu(menu: Menu?): Boolean {
         menu?.findItem(R.id.action_delete_mode)?.isVisible = !isDeleteMode
         menu?.findItem(R.id.action_cancel_delete)?.isVisible = isDeleteMode
+        menu?.findItem(R.id.action_export)?.isVisible = !isDeleteMode
+        menu?.findItem(R.id.action_import)?.isVisible = !isDeleteMode
+        menu?.findItem(R.id.action_export_selected)?.isVisible = isDeleteMode
         return super.onPrepareOptionsMenu(menu)
     }
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_export -> {
+                showExportDialog()
+                true
+            }
+            R.id.action_import -> {
+                showImportOptions()
+                true
+            }
+            R.id.action_export_selected -> {
+                showExportSelectedDialog()
+                true
+            }
             R.id.action_delete_mode -> {
                 enterDeleteMode()
                 true
@@ -195,6 +221,159 @@ class MainActivity : AppCompatActivity() {
             exitDeleteMode()
         } else {
             super.onBackPressed()
+        }
+    }
+    
+    private fun showExportDialog() {
+        val notes = viewModel.notes.value
+        if (notes.isEmpty()) {
+            Toast.makeText(this, "没有记事可以导出", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val noteIds = notes.map { it.id }.toSet()
+        showExportPasswordDialog(noteIds)
+    }
+    
+    private fun showExportSelectedDialog() {
+        val selectedNotes = noteAdapter.getSelectedNotes()
+        if (selectedNotes.isEmpty()) {
+            Toast.makeText(this, "请选择要导出的记事", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        showExportPasswordDialog(selectedNotes)
+    }
+    
+    private fun showExportPasswordDialog(noteIds: Set<String>) {
+        val editText = EditText(this).apply {
+            hint = "请输入导出密码"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle("导出记事")
+            .setMessage("请设置一个密码来加密您的记事文件")
+            .setView(editText)
+            .setPositiveButton("导出") { _, _ ->
+                val password = editText.text.toString()
+                if (password.isNotEmpty()) {
+                    performExport(noteIds, password)
+                } else {
+                    Toast.makeText(this, "密码不能为空", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    private fun performExport(noteIds: Set<String>, password: String) {
+        lifecycleScope.launch {
+            viewModel.exportNotes(
+                noteIds = noteIds,
+                password = password,
+                onProgress = { progress ->
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, progress, Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onSuccess = { file ->
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, "导出成功：${file.name}", Toast.LENGTH_LONG).show()
+                        exitDeleteMode()
+                    }
+                },
+                onError = { error ->
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                    }
+                }
+            )
+        }
+    }
+    
+    private fun showImportOptions() {
+        importFileLauncher.launch("application/zip")
+    }
+    
+    private fun handleImportFile(uri: Uri) {
+        try {
+            val inputStream = contentResolver.openInputStream(uri)
+            val tempFile = File(cacheDir, "import_temp.zip")
+            tempFile.outputStream().use { output ->
+                inputStream?.copyTo(output)
+            }
+            
+            showImportPasswordDialog(tempFile)
+        } catch (e: Exception) {
+            Toast.makeText(this, "读取文件失败：${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+    
+    private fun showImportPasswordDialog(zipFile: File) {
+        val editText = EditText(this).apply {
+            hint = "请输入导入密码"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle("导入记事")
+            .setMessage("请输入文件的解密密码")
+            .setView(editText)
+            .setPositiveButton("导入") { _, _ ->
+                val password = editText.text.toString()
+                if (password.isNotEmpty()) {
+                    showImportModeDialog(zipFile, password)
+                } else {
+                    Toast.makeText(this, "密码不能为空", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消") { _, _ ->
+                zipFile.delete()
+            }
+            .show()
+    }
+    
+    private fun showImportModeDialog(zipFile: File, password: String) {
+        AlertDialog.Builder(this)
+            .setTitle("导入模式")
+            .setMessage("请选择导入模式：\n\n覆盖导入：删除所有现有记事，导入新记事\n追加导入：保留现有记事，添加新记事")
+            .setPositiveButton("覆盖导入") { _, _ ->
+                performImport(zipFile, password, true)
+            }
+            .setNeutralButton("追加导入") { _, _ ->
+                performImport(zipFile, password, false)
+            }
+            .setNegativeButton("取消") { _, _ ->
+                zipFile.delete()
+            }
+            .show()
+    }
+    
+    private fun performImport(zipFile: File, password: String, overwrite: Boolean) {
+        lifecycleScope.launch {
+            viewModel.importNotes(
+                zipFile = zipFile,
+                password = password,
+                overwrite = overwrite,
+                onProgress = { progress ->
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, progress, Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onSuccess = { count ->
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, "成功导入 $count 条记事", Toast.LENGTH_LONG).show()
+                        zipFile.delete()
+                    }
+                },
+                onError = { error ->
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                        zipFile.delete()
+                    }
+                }
+            )
         }
     }
 }
