@@ -179,7 +179,7 @@ class NoteEditActivity : AppCompatActivity() {
                     binding.richEditText.loadFromBlocks(note.blocks)
                 //./    binding.toolbar.title = if (note.note.title.isEmpty()) "编辑记事" else note.note.title
                     updateModifiedTime(note.note.updatedAt)
-                    updateCategoryDisplay()
+                    // updateCategoryDisplay() 已在 updateModifiedTime 中调用
                 }
             } catch (e: Exception) {
                 Toast.makeText(this@NoteEditActivity, "加载记事失败", Toast.LENGTH_SHORT).show()
@@ -236,19 +236,26 @@ class NoteEditActivity : AppCompatActivity() {
         val formattedTime = formatter.format(Date(timestamp))
         binding.tvModifiedTime.text = "修改于 $formattedTime"
         binding.tvModifiedTime.visibility = View.VISIBLE
+        
+        // 确保分类标签也显示
+        updateCategoryDisplay()
     }
     
     private fun updateCategoryDisplay() {
         lifecycleScope.launch {
             try {
+                android.util.Log.d("NoteEditActivity", "updateCategoryDisplay: currentCategoryId = $currentCategoryId")
                 val category = viewModel.getCategoryById(currentCategoryId)
                 if (category != null) {
+                    android.util.Log.d("NoteEditActivity", "Found category: ${category.name}")
                     binding.tvCategoryTag.text = category.name
                     binding.tvCategoryTag.visibility = View.VISIBLE
                 } else {
+                    android.util.Log.d("NoteEditActivity", "Category not found for id: $currentCategoryId")
                     binding.tvCategoryTag.visibility = View.GONE
                 }
             } catch (e: Exception) {
+                android.util.Log.e("NoteEditActivity", "Error updating category display", e)
                 binding.tvCategoryTag.visibility = View.GONE
             }
         }

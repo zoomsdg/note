@@ -5,6 +5,9 @@ import com.example.xnote.data.*
 import com.example.xnote.utils.ExportImportUtils
 import com.example.xnote.utils.FileUtils
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.UUID
 
@@ -16,6 +19,40 @@ class NoteRepository(val context: Context) {
     private val database = NoteDatabase.getDatabase(context)
     private val noteDao = database.noteDao()
     private val categoryDao = database.categoryDao()
+    
+    init {
+        // 确保默认分类存在
+        CoroutineScope(Dispatchers.IO).launch {
+            ensureDefaultCategoriesExist()
+        }
+    }
+    
+    /**
+     * 确保默认分类存在
+     */
+    private suspend fun ensureDefaultCategoriesExist() {
+        try {
+            android.util.Log.d("NoteRepository", "Checking default categories...")
+            // 检查并创建默认分类
+            val defaultCategories = listOf(
+                Category(id = "daily", name = "日常", isDefault = true, createdAt = System.currentTimeMillis()),
+                Category(id = "work", name = "工作", isDefault = true, createdAt = System.currentTimeMillis()),
+                Category(id = "thoughts", name = "感悟", isDefault = true, createdAt = System.currentTimeMillis())
+            )
+            
+            for (category in defaultCategories) {
+                val exists = categoryDao.categoryExists(category.id)
+                android.util.Log.d("NoteRepository", "Category ${category.name} exists: ${exists > 0}")
+                if (exists == 0) {
+                    categoryDao.insertCategory(category)
+                    android.util.Log.d("NoteRepository", "Created category: ${category.name}")
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("NoteRepository", "Error ensuring default categories exist", e)
+            e.printStackTrace()
+        }
+    }
     
     fun getAllNotes(): Flow<List<Note>> = noteDao.getAllNotes()
     
@@ -102,6 +139,7 @@ class NoteRepository(val context: Context) {
         val note = Note(
             id = UUID.randomUUID().toString(), // 生成新的ID避免冲突
             title = importNote.title,
+            categoryId = "daily", // 导入的记事默认分类为日常
             createdAt = importNote.createdAt,
             updatedAt = System.currentTimeMillis(), // 更新为当前时间
             version = 1
