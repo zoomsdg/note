@@ -60,25 +60,13 @@ class MainActivity : AppCompatActivity() {
             createNewNote()
         }
         
-        // 初始隐藏删除操作栏和搜索栏
-        binding.deleteActionBar.visibility = View.GONE
+        // 初始隐藏搜索栏
         binding.searchLayout.visibility = View.GONE
         
         // 搜索相关事件
         setupSearchFunctionality()
         
-        // 底部操作栏点击事件
-        binding.btnSelectAll.setOnClickListener {
-            noteAdapter.selectAll()
-        }
-        
-        binding.btnDeselectAll.setOnClickListener {
-            noteAdapter.deselectAll()
-        }
-        
-        binding.btnDeleteSelected.setOnClickListener {
-            showDeleteConfirmDialog()
-        }
+        // 删除功能已移至菜单，移除底部操作栏相关代码
     }
     
     private fun setupSearchFunctionality() {
@@ -197,12 +185,16 @@ class MainActivity : AppCompatActivity() {
     
     override fun onPrepareOptionsMenu(menu: Menu?): Boolean {
         val isSearchMode = viewModel.isSearchMode.value
+        val selectedCount = if (isDeleteMode) noteAdapter.getSelectedNotes().size else 0
+        
         menu?.findItem(R.id.action_search)?.isVisible = !isDeleteMode && !isSearchMode
         menu?.findItem(R.id.action_delete_mode)?.isVisible = !isDeleteMode && !isSearchMode
         menu?.findItem(R.id.action_cancel_delete)?.isVisible = isDeleteMode
         menu?.findItem(R.id.action_export)?.isVisible = !isDeleteMode && !isSearchMode
         menu?.findItem(R.id.action_import)?.isVisible = !isDeleteMode && !isSearchMode
         menu?.findItem(R.id.action_export_selected)?.isVisible = isDeleteMode
+        menu?.findItem(R.id.action_delete_selected)?.isVisible = isDeleteMode && selectedCount > 0
+        
         return super.onPrepareOptionsMenu(menu)
     }
     
@@ -233,6 +225,10 @@ class MainActivity : AppCompatActivity() {
                 exitDeleteMode()
                 true
             }
+            R.id.action_delete_selected -> {
+                showDeleteConfirmDialog()
+                true
+            }
             else -> super.onOptionsItemSelected(item)
         }
     }
@@ -240,7 +236,6 @@ class MainActivity : AppCompatActivity() {
     private fun enterDeleteMode() {
         isDeleteMode = true
         noteAdapter.setSelectionMode(true)
-        binding.deleteActionBar.visibility = View.VISIBLE
         binding.fabNewNote.visibility = View.GONE
         invalidateOptionsMenu()
         
@@ -251,7 +246,6 @@ class MainActivity : AppCompatActivity() {
     private fun exitDeleteMode() {
         isDeleteMode = false
         noteAdapter.setSelectionMode(false)
-        binding.deleteActionBar.visibility = View.GONE
         binding.fabNewNote.visibility = View.VISIBLE
         invalidateOptionsMenu()
         
@@ -263,10 +257,8 @@ class MainActivity : AppCompatActivity() {
         val count = selectedNotes.size
         supportActionBar?.title = if (count > 0) "已选择 $count 项" else "选择记事"
         
-        // 更新按钮状态
-        binding.btnDeleteSelected.isEnabled = count > 0
-        binding.btnSelectAll.isEnabled = count < noteAdapter.itemCount
-        binding.btnDeselectAll.isEnabled = count > 0
+        // 刷新菜单状态，让删除按钮根据选择数量启用/禁用
+        invalidateOptionsMenu()
     }
     
     private fun showDeleteConfirmDialog() {

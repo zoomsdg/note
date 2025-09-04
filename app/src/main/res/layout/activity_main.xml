@@ -83,7 +83,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />
 
-    <!-- 删除模式的底部操作栏 -->
+    <!-- 删除模式的底部操作栏 - 已移除，功能转移到菜单 
     <LinearLayout
         android:id="@+id/deleteActionBar"
         android:layout_width="match_parent"
@@ -146,6 +146,7 @@
             style="?android:attr/borderlessButtonStyle" />
 
     </LinearLayout>
+    -->
 
     <LinearLayout
         android:id="@+id/emptyLayout"

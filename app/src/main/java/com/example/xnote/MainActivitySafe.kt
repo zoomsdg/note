@@ -54,8 +54,7 @@ class MainActivitySafe : AppCompatActivity() {
             createNewNote()
         }
         
-        // 隐藏删除相关的UI
-        binding.deleteActionBar.visibility = View.GONE
+        // 删除功能已移至菜单，无需额外UI设置
     }
     
     private fun observeViewModel() {

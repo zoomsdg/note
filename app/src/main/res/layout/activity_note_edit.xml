@@ -103,7 +103,7 @@
                 android:textColorHint="@color/secondary_text"
                 android:gravity="top"
                 android:inputType="textCapSentences|textMultiLine"
-                android:minHeight="600dp"
+                android:minHeight="350dp"
                 android:scrollbars="vertical"
                 android:lineSpacingExtra="6dp"
                 app:layout_constraintBottom_toBottomOf="parent"/>

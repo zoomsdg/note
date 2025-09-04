@@ -339,12 +339,12 @@ class NoteEditActivity : AppCompatActivity() {
     }
     
     private fun showImageOptions() {
-        val options = arrayOf("相册选择", "拍照")
+        val options = arrayOf( "拍照", "本地相册")
         val dialog = AlertDialog.Builder(this)
             .setItems(options) { _, which ->
                 when (which) {
-                    0 -> selectImageFromGallery()
-                    1 -> takePhoto()
+                    1 -> selectImageFromGallery()
+                    0 -> takePhoto()
                 }
             }
             .create()
@@ -363,12 +363,12 @@ class NoteEditActivity : AppCompatActivity() {
     }
     
     private fun showAudioOptions() {
-        val options = arrayOf("选择音频文件", "录音")
+        val options = arrayOf("录音", "本地音频")
         val dialog = AlertDialog.Builder(this)
             .setItems(options) { _, which ->
                 when (which) {
-                    0 -> selectAudioFromFiles()
-                    1 -> startRecording()
+                    1 -> selectAudioFromFiles()
+                    0 -> startRecording()
                 }
             }
             .create()
