@@ -5,6 +5,9 @@ import android.os.Environment
 import com.example.xnote.data.FullNote
 import com.example.xnote.data.NoteBlock
 import com.example.xnote.data.BlockType
+import com.example.xnote.utils.SecurityLog
+import com.example.xnote.utils.SecureFileValidator
+import com.example.xnote.utils.SecureTempFileManager
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import net.lingala.zip4j.ZipFile
@@ -35,12 +38,12 @@ class ExportImportUtils(private val context: Context) {
         onSuccess: (File) -> Unit,
         onError: (String) -> Unit
     ) {
+        var tempDir: File? = null
         try {
             onProgress("准备导出数据...")
             
-            // 创建临时目录
-            val tempDir = File(context.cacheDir, "export_temp_${System.currentTimeMillis()}")
-            tempDir.mkdirs()
+            // 创建安全的临时目录
+            tempDir = SecureTempFileManager.createSecureTempDir(context, "export_temp")
             
             // 创建媒体文件目录
             val mediaDir = File(tempDir, "media")
@@ -64,39 +67,53 @@ class ExportImportUtils(private val context: Context) {
                             )
                         }
                         BlockType.IMAGE -> {
-                            // 复制图片文件
+                            // 安全复制图片文件
                             val originalFile = File(block.url ?: "")
                             if (originalFile.exists()) {
-                                val fileName = "image_${block.id}_${originalFile.name}"
-                                val targetFile = File(mediaDir, fileName)
-                                originalFile.copyTo(targetFile, overwrite = true)
-                                
-                                ExportBlock(
-                                    type = "image",
-                                    order = block.order,
-                                    mediaFileName = fileName,
-                                    alt = block.alt,
-                                    width = block.width,
-                                    height = block.height
-                                )
+                                // 验证文件安全性
+                                val fileValidation = SecureFileValidator.validateFileSize(originalFile)
+                                if (fileValidation is SecureFileValidator.ValidationResult.Valid) {
+                                    val fileName = "image_${UUID.randomUUID()}.${originalFile.extension}"
+                                    val targetFile = SecureFileValidator.createSecureExtractPath(mediaDir, fileName)
+                                    originalFile.copyTo(targetFile, overwrite = true)
+                                    
+                                    ExportBlock(
+                                        type = "image",
+                                        order = block.order,
+                                        mediaFileName = fileName,
+                                        alt = block.alt,
+                                        width = block.width,
+                                        height = block.height
+                                    )
+                                } else {
+                                    SecurityLog.w("ExportImportUtils", "Skipping invalid image file")
+                                    ExportBlock(type = "text", order = block.order, text = "[图片文件无效或过大]")
+                                }
                             } else {
                                 ExportBlock(type = "text", order = block.order, text = "[图片文件丢失]")
                             }
                         }
                         BlockType.AUDIO -> {
-                            // 复制音频文件
+                            // 安全复制音频文件
                             val originalFile = File(block.url ?: "")
                             if (originalFile.exists()) {
-                                val fileName = "audio_${block.id}_${originalFile.name}"
-                                val targetFile = File(mediaDir, fileName)
-                                originalFile.copyTo(targetFile, overwrite = true)
-                                
-                                ExportBlock(
-                                    type = "audio",
-                                    order = block.order,
-                                    mediaFileName = fileName,
-                                    duration = block.duration
-                                )
+                                // 验证文件安全性
+                                val fileValidation = SecureFileValidator.validateFileSize(originalFile)
+                                if (fileValidation is SecureFileValidator.ValidationResult.Valid) {
+                                    val fileName = "audio_${UUID.randomUUID()}.${originalFile.extension}"
+                                    val targetFile = SecureFileValidator.createSecureExtractPath(mediaDir, fileName)
+                                    originalFile.copyTo(targetFile, overwrite = true)
+                                    
+                                    ExportBlock(
+                                        type = "audio",
+                                        order = block.order,
+                                        mediaFileName = fileName,
+                                        duration = block.duration
+                                    )
+                                } else {
+                                    SecurityLog.w("ExportImportUtils", "Skipping invalid audio file")
+                                    ExportBlock(type = "text", order = block.order, text = "[音频文件无效或过大]")
+                                }
                             } else {
                                 ExportBlock(type = "text", order = block.order, text = "[音频文件丢失]")
                             }
@@ -154,14 +171,16 @@ class ExportImportUtils(private val context: Context) {
                 zipFile.addFolder(mediaDir, zipParameters)
             }
             
-            // 清理临时文件
-            tempDir.deleteRecursively()
-            
             onProgress("导出完成！")
             onSuccess(outputFile)
+            SecurityLog.i("ExportImportUtils", "Successfully exported notes")
             
         } catch (e: Exception) {
+            SecurityLog.e("ExportImportUtils", "Export failed", e)
             onError("导出失败：${e.message}")
+        } finally {
+            // 安全清理临时文件
+            tempDir?.let { SecureTempFileManager.secureDeleteDir(it) }
         }
     }
     
@@ -175,27 +194,49 @@ class ExportImportUtils(private val context: Context) {
         onSuccess: (List<ImportNote>) -> Unit,
         onError: (String) -> Unit
     ) {
+        var tempDir: File? = null
         try {
-            onProgress("验证ZIP文件...")
+            onProgress("验证ZIP文件安全性...")
             
-            val zip = ZipFile(zipFile)
-            if (!zip.isValidZipFile) {
-                onError("不是有效的ZIP文件")
+            // 首先验证ZIP文件安全性
+            val zipValidation = SecureFileValidator.validateZipFile(zipFile)
+            if (zipValidation !is SecureFileValidator.ValidationResult.Valid) {
+                val reason = (zipValidation as SecureFileValidator.ValidationResult.Invalid).reason
+                SecurityLog.w("ExportImportUtils", "ZIP validation failed: $reason")
+                onError(reason)
                 return
             }
             
+            val zip = ZipFile(zipFile)
             zip.setPassword(password.toCharArray())
             
             onProgress("解密文件...")
             
-            // 创建临时解压目录
-            val tempDir = File(context.cacheDir, "import_temp_${System.currentTimeMillis()}")
-            tempDir.mkdirs()
+            // 创建安全的临时解压目录
+            tempDir = SecureTempFileManager.createSecureTempDir(context, "import_temp")
             
             try {
-                zip.extractAll(tempDir.absolutePath)
+                // 安全解压文件
+                val headers = zip.fileHeaders
+                for (header in headers) {
+                    val fileName = header.fileName
+                    
+                    // 再次验证每个文件名的安全性
+                    val nameValidation = SecureFileValidator.validateFileName(fileName)
+                    if (nameValidation !is SecureFileValidator.ValidationResult.Valid) {
+                        SecurityLog.w("ExportImportUtils", "Unsafe filename detected: $fileName")
+                        continue // 跳过不安全的文件
+                    }
+                    
+                    // 创建安全的解压路径
+                    val targetFile = SecureFileValidator.createSecureExtractPath(tempDir, fileName)
+                    targetFile.parentFile?.mkdirs()
+                    
+                    // 解压单个文件
+                    zip.extractFile(header, tempDir.absolutePath)
+                }
             } catch (e: Exception) {
-                tempDir.deleteRecursively()
+                SecurityLog.e("ExportImportUtils", "Decryption failed", e)
                 onError("解密失败，请检查密码是否正确")
                 return
             }
@@ -205,8 +246,16 @@ class ExportImportUtils(private val context: Context) {
             // 读取数据文件
             val dataFile = File(tempDir, "notes_data.json")
             if (!dataFile.exists()) {
-                tempDir.deleteRecursively()
+                SecurityLog.w("ExportImportUtils", "Data file missing")
                 onError("ZIP文件格式不正确，缺少数据文件")
+                return
+            }
+            
+            // 验证数据文件大小
+            val dataValidation = SecureFileValidator.validateFileSize(dataFile, 5 * 1024 * 1024) // 5MB限制
+            if (dataValidation !is SecureFileValidator.ValidationResult.Valid) {
+                SecurityLog.w("ExportImportUtils", "Data file too large")
+                onError("数据文件过大")
                 return
             }
             
@@ -215,8 +264,15 @@ class ExportImportUtils(private val context: Context) {
                 val type = object : TypeToken<List<ExportNote>>() {}.type
                 gson.fromJson(json, type)
             } catch (e: Exception) {
-                tempDir.deleteRecursively()
+                SecurityLog.e("ExportImportUtils", "Data parsing failed", e)
                 onError("数据文件格式错误：${e.message}")
+                return
+            }
+            
+            // 验证导入数据的合理性
+            if (exportData.size > 10000) { // 限制记事数量
+                SecurityLog.w("ExportImportUtils", "Too many notes to import: ${exportData.size}")
+                onError("导入的记事数量过多")
                 return
             }
             
@@ -233,12 +289,22 @@ class ExportImportUtils(private val context: Context) {
                         "text" -> ImportBlock(
                             type = BlockType.TEXT,
                             order = exportBlock.order,
-                            text = exportBlock.text
+                            text = exportBlock.text?.take(10000) // 限制文本长度
                         )
                         "image" -> {
-                            val mediaFile = if (exportBlock.mediaFileName != null) {
-                                File(mediaDir, exportBlock.mediaFileName)
-                            } else null
+                            var mediaFile: File? = null
+                            if (exportBlock.mediaFileName != null) {
+                                val potentialFile = SecureFileValidator.createSecureExtractPath(mediaDir, exportBlock.mediaFileName)
+                                if (potentialFile.exists()) {
+                                    // 验证媒体文件
+                                    val mediaValidation = SecureFileValidator.validateFileSize(potentialFile)
+                                    if (mediaValidation is SecureFileValidator.ValidationResult.Valid) {
+                                        mediaFile = potentialFile
+                                    } else {
+                                        SecurityLog.w("ExportImportUtils", "Skipping invalid media file: ${exportBlock.mediaFileName}")
+                                    }
+                                }
+                            }
                             
                             ImportBlock(
                                 type = BlockType.IMAGE,
@@ -250,9 +316,19 @@ class ExportImportUtils(private val context: Context) {
                             )
                         }
                         "audio" -> {
-                            val mediaFile = if (exportBlock.mediaFileName != null) {
-                                File(mediaDir, exportBlock.mediaFileName)
-                            } else null
+                            var mediaFile: File? = null
+                            if (exportBlock.mediaFileName != null) {
+                                val potentialFile = SecureFileValidator.createSecureExtractPath(mediaDir, exportBlock.mediaFileName)
+                                if (potentialFile.exists()) {
+                                    // 验证媒体文件
+                                    val mediaValidation = SecureFileValidator.validateFileSize(potentialFile)
+                                    if (mediaValidation is SecureFileValidator.ValidationResult.Valid) {
+                                        mediaFile = potentialFile
+                                    } else {
+                                        SecurityLog.w("ExportImportUtils", "Skipping invalid media file: ${exportBlock.mediaFileName}")
+                                    }
+                                }
+                            }
                             
                             ImportBlock(
                                 type = BlockType.AUDIO,
@@ -261,11 +337,14 @@ class ExportImportUtils(private val context: Context) {
                                 duration = exportBlock.duration
                             )
                         }
-                        else -> ImportBlock(
-                            type = BlockType.TEXT,
-                            order = exportBlock.order,
-                            text = "[未知类型的内容]"
-                        )
+                        else -> {
+                            SecurityLog.w("ExportImportUtils", "Unknown block type: ${exportBlock.type}")
+                            ImportBlock(
+                                type = BlockType.TEXT,
+                                order = exportBlock.order,
+                                text = "[未知类型的内容]"
+                            )
+                        }
                     }
                     importBlocks.add(importBlock)
                 }
@@ -273,7 +352,7 @@ class ExportImportUtils(private val context: Context) {
                 importNotes.add(
                     ImportNote(
                         id = exportNote.id,
-                        title = exportNote.title,
+                        title = exportNote.title.take(200), // 限制标题长度
                         createdAt = exportNote.createdAt,
                         updatedAt = exportNote.updatedAt,
                         version = exportNote.version,
@@ -285,9 +364,13 @@ class ExportImportUtils(private val context: Context) {
             
             onProgress("导入完成！")
             onSuccess(importNotes)
+            SecurityLog.i("ExportImportUtils", "Successfully imported ${importNotes.size} notes")
             
         } catch (e: Exception) {
+            SecurityLog.e("ExportImportUtils", "Import failed", e)
             onError("导入失败：${e.message}")
+            // 发生异常时立即清理临时文件
+            tempDir?.let { SecureTempFileManager.secureDeleteDir(it) }
         }
     }
     

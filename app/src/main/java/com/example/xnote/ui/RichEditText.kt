@@ -14,6 +14,7 @@ import android.view.MotionEvent
 import androidx.appcompat.widget.AppCompatEditText
 import com.example.xnote.data.BlockType
 import com.example.xnote.data.NoteBlock
+import com.example.xnote.utils.SecurityLog
 import java.util.*
 
 /**
@@ -261,7 +262,7 @@ class ImageMediaSpan(
                     displayHeight = bitmap.height
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                SecurityLog.e("RichEditText", "Failed to load image for display", e)
                 // 加载失败时使用默认尺寸
                 displayWidth = 200
                 displayHeight = 150

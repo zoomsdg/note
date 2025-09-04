@@ -30,6 +30,7 @@ import com.example.xnote.repository.NoteRepository
 import com.example.xnote.utils.FileUtils
 import com.example.xnote.utils.ImageUtils
 import com.example.xnote.utils.PermissionUtils
+import com.example.xnote.utils.SecurityLog
 import com.example.xnote.viewmodel.NoteEditViewModel
 import com.example.xnote.viewmodel.NoteEditViewModelFactory
 import kotlinx.coroutines.launch
@@ -247,18 +248,18 @@ class NoteEditActivity : AppCompatActivity() {
     private fun updateCategoryDisplay() {
         lifecycleScope.launch {
             try {
-                android.util.Log.d("NoteEditActivity", "updateCategoryDisplay: currentCategoryId = $currentCategoryId")
+                SecurityLog.d("NoteEditActivity", "Updating category display")
                 val category = viewModel.getCategoryById(currentCategoryId)
                 if (category != null) {
-                    android.util.Log.d("NoteEditActivity", "Found category: ${category.name}")
+                    SecurityLog.d("NoteEditActivity", "Category found and displayed")
                     binding.tvCategoryTag.text = category.name
                     binding.tvCategoryTag.visibility = View.VISIBLE
                 } else {
-                    android.util.Log.d("NoteEditActivity", "Category not found for id: $currentCategoryId")
+                    SecurityLog.d("NoteEditActivity", "Category not found")
                     binding.tvCategoryTag.visibility = View.GONE
                 }
             } catch (e: Exception) {
-                android.util.Log.e("NoteEditActivity", "Error updating category display", e)
+                SecurityLog.e("NoteEditActivity", "Failed to update category display", e)
                 binding.tvCategoryTag.visibility = View.GONE
             }
         }
@@ -270,19 +271,19 @@ class NoteEditActivity : AppCompatActivity() {
         
         // 检查标题是否改变
         if (currentTitle != initialTitle) {
-            android.util.Log.d("NoteEditActivity", "Title changed: '$initialTitle' -> '$currentTitle'")
+            SecurityLog.d("NoteEditActivity", "Title content changed")
             return true
         }
         
         // 检查分类是否改变
         if (currentCategoryId != initialCategoryId) {
-            android.util.Log.d("NoteEditActivity", "Category changed: '$initialCategoryId' -> '$currentCategoryId'")
+            SecurityLog.d("NoteEditActivity", "Category changed")
             return true
         }
         
         // 检查块数量是否改变
         if (currentBlocks.size != initialBlocks.size) {
-            android.util.Log.d("NoteEditActivity", "Block count changed: ${initialBlocks.size} -> ${currentBlocks.size}")
+            SecurityLog.d("NoteEditActivity", "Block count changed")
             return true
         }
         
@@ -302,7 +303,7 @@ class NoteEditActivity : AppCompatActivity() {
                 current.duration != initial.duration ||
                 current.width != initial.width ||
                 current.height != initial.height) {
-                android.util.Log.d("NoteEditActivity", "Block $i changed")
+                SecurityLog.d("NoteEditActivity", "Block content changed")
                 return true
             }
         }

@@ -4,6 +4,7 @@ import android.content.Context
 import com.example.xnote.data.*
 import com.example.xnote.utils.ExportImportUtils
 import com.example.xnote.utils.FileUtils
+import com.example.xnote.utils.SecurityLog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,7 +33,7 @@ class NoteRepository(val context: Context) {
      */
     private suspend fun ensureDefaultCategoriesExist() {
         try {
-            android.util.Log.d("NoteRepository", "Checking default categories...")
+            SecurityLog.d("NoteRepository", "Initializing default categories")
             // 检查并创建默认分类
             val defaultCategories = listOf(
                 Category(id = "daily", name = "日常", isDefault = true, createdAt = System.currentTimeMillis()),
@@ -42,15 +43,13 @@ class NoteRepository(val context: Context) {
             
             for (category in defaultCategories) {
                 val exists = categoryDao.categoryExists(category.id)
-                android.util.Log.d("NoteRepository", "Category ${category.name} exists: ${exists > 0}")
                 if (exists == 0) {
                     categoryDao.insertCategory(category)
-                    android.util.Log.d("NoteRepository", "Created category: ${category.name}")
+                    SecurityLog.d("NoteRepository", "Created default category")
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.e("NoteRepository", "Error ensuring default categories exist", e)
-            e.printStackTrace()
+            SecurityLog.e("NoteRepository", "Failed to initialize default categories", e)
         }
     }
     
