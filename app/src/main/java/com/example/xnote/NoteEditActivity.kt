@@ -47,6 +47,7 @@ class NoteEditActivity : AppCompatActivity() {
     private var currentNote: FullNote? = null
     private var initialTitle: String = ""
     private var initialBlocks: List<NoteBlock> = emptyList()
+    private var initialCategoryId: String = "daily"
     private var hasContentChanged = false
     private var currentCategoryId: String = "daily"
     
@@ -173,6 +174,7 @@ class NoteEditActivity : AppCompatActivity() {
                     // 记录初始状态
                     initialTitle = note.note.title
                     initialBlocks = note.blocks.toList()
+                    initialCategoryId = note.note.categoryId
                     currentCategoryId = note.note.categoryId
                     
                     binding.editTitle.setText(note.note.title)
@@ -205,6 +207,7 @@ class NoteEditActivity : AppCompatActivity() {
                         hasContentChanged = false
                         initialTitle = binding.editTitle.text.toString()
                         initialBlocks = binding.richEditText.toBlocks()
+                        initialCategoryId = currentCategoryId // 更新初始分类ID
                         // 1秒后隐藏状态
                         Handler(Looper.getMainLooper()).postDelayed({
                             binding.tvStatus.visibility = View.GONE
@@ -267,11 +270,19 @@ class NoteEditActivity : AppCompatActivity() {
         
         // 检查标题是否改变
         if (currentTitle != initialTitle) {
+            android.util.Log.d("NoteEditActivity", "Title changed: '$initialTitle' -> '$currentTitle'")
+            return true
+        }
+        
+        // 检查分类是否改变
+        if (currentCategoryId != initialCategoryId) {
+            android.util.Log.d("NoteEditActivity", "Category changed: '$initialCategoryId' -> '$currentCategoryId'")
             return true
         }
         
         // 检查块数量是否改变
         if (currentBlocks.size != initialBlocks.size) {
+            android.util.Log.d("NoteEditActivity", "Block count changed: ${initialBlocks.size} -> ${currentBlocks.size}")
             return true
         }
         
@@ -291,6 +302,7 @@ class NoteEditActivity : AppCompatActivity() {
                 current.duration != initial.duration ||
                 current.width != initial.width ||
                 current.height != initial.height) {
+                android.util.Log.d("NoteEditActivity", "Block $i changed")
                 return true
             }
         }
