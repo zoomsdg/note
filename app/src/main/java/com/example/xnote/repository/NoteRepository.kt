@@ -58,6 +58,9 @@ class NoteRepository(val context: Context) {
     
     fun getNoteSummaries(): Flow<List<NoteSummary>> = noteDao.getNoteSummaries()
     
+    fun searchNoteSummaries(searchQuery: String): Flow<List<NoteSummary>> = 
+        noteDao.searchNoteSummaries(searchQuery)
+    
     suspend fun getNoteById(noteId: String): Note? = noteDao.getNoteById(noteId)
     
     suspend fun getFullNote(noteId: String): FullNote? = noteDao.getFullNote(noteId)

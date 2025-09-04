@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import java.io.File
 
 class MainViewModel(
@@ -19,16 +20,52 @@ class MainViewModel(
     private val _notes = MutableStateFlow<List<NoteSummary>>(emptyList())
     val notes: StateFlow<List<NoteSummary>> = _notes.asStateFlow()
     
+    private val _isSearchMode = MutableStateFlow(false)
+    val isSearchMode: StateFlow<Boolean> = _isSearchMode.asStateFlow()
+    
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+    
+    private var searchJob: Job? = null
+    
     init {
         loadNotes()
     }
     
     private fun loadNotes() {
-        viewModelScope.launch {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             repository.getNoteSummaries().collect { noteList ->
                 _notes.value = noteList
             }
         }
+    }
+    
+    fun search(query: String) {
+        _searchQuery.value = query
+        searchJob?.cancel()
+        
+        if (query.isBlank()) {
+            // 如果搜索为空，显示所有记事
+            loadNotes()
+        } else {
+            // 执行搜索
+            searchJob = viewModelScope.launch {
+                repository.searchNoteSummaries(query).collect { searchResults ->
+                    _notes.value = searchResults
+                }
+            }
+        }
+    }
+    
+    fun enterSearchMode() {
+        _isSearchMode.value = true
+    }
+    
+    fun exitSearchMode() {
+        _isSearchMode.value = false
+        _searchQuery.value = ""
+        loadNotes() // 重新加载所有记事
     }
     
     //./suspend fun createNewNote(title: String = "无标题"): String {

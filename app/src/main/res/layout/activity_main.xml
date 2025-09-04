@@ -16,16 +16,58 @@
         app:title="@string/app_name"
         app:titleTextColor="@color/white"
         app:layout_constraintTop_toTopOf="parent" />
-        <!-- 
-        android:layout_height="1dp"
-        android:layout_height="?attr/actionBarSize" //./-->
+        
+    <!-- 搜索栏 -->
+    <LinearLayout
+        android:id="@+id/searchLayout"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:background="@color/card_background"
+        android:paddingHorizontal="16dp"
+        android:gravity="center_vertical"
+        android:elevation="2dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/toolbar">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_menu_search"
+            android:layout_marginEnd="12dp"
+            android:alpha="0.6" />
+
+        <EditText
+            android:id="@+id/searchEditText"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:hint="搜索记事内容..."
+            android:textSize="16sp"
+            android:textColor="@color/primary_text"
+            android:textColorHint="@color/secondary_text"
+            android:inputType="text"
+            android:imeOptions="actionSearch"
+            android:singleLine="true" />
+
+        <ImageButton
+            android:id="@+id/btnClearSearch"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="清除搜索"
+            android:visibility="gone" />
+
+    </LinearLayout>
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:padding="16dp"
         android:clipToPadding="false"
-        app:layout_constraintTop_toBottomOf="@id/toolbar"
+        app:layout_constraintTop_toBottomOf="@id/searchLayout"
         app:layout_constraintBottom_toBottomOf="parent" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton

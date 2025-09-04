@@ -3,9 +3,14 @@ package com.example.xnote
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -55,8 +60,12 @@ class MainActivity : AppCompatActivity() {
             createNewNote()
         }
         
-        // 初始隐藏删除操作栏
+        // 初始隐藏删除操作栏和搜索栏
         binding.deleteActionBar.visibility = View.GONE
+        binding.searchLayout.visibility = View.GONE
+        
+        // 搜索相关事件
+        setupSearchFunctionality()
         
         // 底部操作栏点击事件
         binding.btnSelectAll.setOnClickListener {
@@ -69,6 +78,38 @@ class MainActivity : AppCompatActivity() {
         
         binding.btnDeleteSelected.setOnClickListener {
             showDeleteConfirmDialog()
+        }
+    }
+    
+    private fun setupSearchFunctionality() {
+        // 搜索框文本变化监听
+        binding.searchEditText.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val query = s?.toString() ?: ""
+                viewModel.search(query)
+                
+                // 显示/隐藏清除按钮
+                binding.btnClearSearch.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
+            }
+        })
+        
+        // 搜索框键盘搜索按钮监听
+        binding.searchEditText.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH || 
+                (event != null && event.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
+                hideKeyboard()
+                true
+            } else {
+                false
+            }
+        }
+        
+        // 清除搜索按钮
+        binding.btnClearSearch.setOnClickListener {
+            binding.searchEditText.setText("")
+            hideKeyboard()
         }
     }
     
@@ -101,6 +142,33 @@ class MainActivity : AppCompatActivity() {
                 updateEmptyState(notes.isEmpty())
             }
         }
+        
+        lifecycleScope.launch {
+            viewModel.isSearchMode.collect { isSearchMode ->
+                updateSearchModeUI(isSearchMode)
+            }
+        }
+    }
+    
+    private fun updateSearchModeUI(isSearchMode: Boolean) {
+        binding.searchLayout.visibility = if (isSearchMode) View.VISIBLE else View.GONE
+        if (isSearchMode) {
+            binding.searchEditText.requestFocus()
+            showKeyboard()
+        } else {
+            binding.searchEditText.setText("")
+            hideKeyboard()
+        }
+    }
+    
+    private fun showKeyboard() {
+        val imm = getSystemService(InputMethodManager::class.java)
+        imm.showSoftInput(binding.searchEditText, InputMethodManager.SHOW_IMPLICIT)
+    }
+    
+    private fun hideKeyboard() {
+        val imm = getSystemService(InputMethodManager::class.java)
+        imm.hideSoftInputFromWindow(binding.searchEditText.windowToken, 0)
     }
     
     private fun updateEmptyState(isEmpty: Boolean) {
@@ -128,16 +196,23 @@ class MainActivity : AppCompatActivity() {
     }
     
     override fun onPrepareOptionsMenu(menu: Menu?): Boolean {
-        menu?.findItem(R.id.action_delete_mode)?.isVisible = !isDeleteMode
+        val isSearchMode = viewModel.isSearchMode.value
+        menu?.findItem(R.id.action_search)?.isVisible = !isDeleteMode && !isSearchMode
+        menu?.findItem(R.id.action_delete_mode)?.isVisible = !isDeleteMode && !isSearchMode
         menu?.findItem(R.id.action_cancel_delete)?.isVisible = isDeleteMode
-        menu?.findItem(R.id.action_export)?.isVisible = !isDeleteMode
-        menu?.findItem(R.id.action_import)?.isVisible = !isDeleteMode
+        menu?.findItem(R.id.action_export)?.isVisible = !isDeleteMode && !isSearchMode
+        menu?.findItem(R.id.action_import)?.isVisible = !isDeleteMode && !isSearchMode
         menu?.findItem(R.id.action_export_selected)?.isVisible = isDeleteMode
         return super.onPrepareOptionsMenu(menu)
     }
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_search -> {
+                viewModel.enterSearchMode()
+                invalidateOptionsMenu()
+                true
+            }
             R.id.action_export -> {
                 showExportDialog()
                 true
@@ -217,10 +292,17 @@ class MainActivity : AppCompatActivity() {
     
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (isDeleteMode) {
-            exitDeleteMode()
-        } else {
-            super.onBackPressed()
+        when {
+            viewModel.isSearchMode.value -> {
+                viewModel.exitSearchMode()
+                invalidateOptionsMenu()
+            }
+            isDeleteMode -> {
+                exitDeleteMode()
+            }
+            else -> {
+                super.onBackPressed()
+            }
         }
     }
     
