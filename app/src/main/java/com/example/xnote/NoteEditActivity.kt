@@ -59,6 +59,8 @@ class NoteEditActivity : AppCompatActivity() {
     private lateinit var audioRecorder: AudioRecorder
     private lateinit var audioPlayer: AudioPlayer
     private var isRecording = false
+    private var currentPlayingBlockId: String? = null
+    private var debugStep = 0
     
     private val recordingHandler = Handler(Looper.getMainLooper())
     private var recordingRunnable: Runnable? = null
@@ -99,6 +101,19 @@ class NoteEditActivity : AppCompatActivity() {
         
         audioPlayer.setOnCompletionListener {
             // Handle audio playback completion
+            currentPlayingBlockId?.let { blockId ->
+                binding.richEditText.updateAudioPlaybackState(blockId, false, 0f)
+                currentPlayingBlockId = null
+            }
+        }
+        
+        // 使用AudioPlayer内置的进度监听器
+        audioPlayer.setOnProgressListener { current, total ->
+            currentPlayingBlockId?.let { blockId ->
+                val progress = if (total > 0) current.toFloat() / total.toFloat() else 0f
+                android.util.Log.d("NoteEditActivity", "Progress update: current=$current, total=$total, progress=$progress")
+                binding.richEditText.updateAudioPlaybackState(blockId, true, progress)
+            }
         }
     }
     
@@ -144,6 +159,9 @@ class NoteEditActivity : AppCompatActivity() {
         binding.richEditText.setOnMediaClickListener { block ->
             handleMediaClick(block)
         }
+        
+        // 默认隐藏调试信息，如需显示可以改为View.VISIBLE
+        binding.debugStatusText.visibility = android.view.View.GONE
         
         // 文本变更监听
         binding.editTitle.addTextChangedListener(object : TextWatcher {
@@ -533,28 +551,90 @@ class NoteEditActivity : AppCompatActivity() {
     }
     
     private fun handleMediaClick(block: NoteBlock) {
+        updateDebugStatus("点击${block.type}: ${block.id.take(8)}")
+        
         when (block.type) {
             BlockType.AUDIO -> {
                 block.url?.let { url ->
-                    if (audioPlayer.isPrepared()) {
+                    updateDebugStatus("音频文件: ${url.substringAfterLast("/")}")
+                    if (currentPlayingBlockId == block.id) {
+                        // 当前正在播放这个音频，切换播放/暂停
                         if (audioPlayer.isPlaying()) {
                             audioPlayer.pause()
+                            val progress = if (audioPlayer.isPrepared()) {
+                                val current = audioPlayer.getCurrentPosition()
+                                val duration = audioPlayer.getDuration()
+                                if (duration > 0) current.toFloat() / duration.toFloat() else 0f
+                            } else 0f
+                            updateDebugStatus("暂停播放, 进度: ${(progress * 100).toInt()}%")
+                            binding.richEditText.updateAudioPlaybackState(block.id, false, progress)
                         } else {
                             audioPlayer.play()
+                            val progress = if (audioPlayer.isPrepared()) {
+                                val current = audioPlayer.getCurrentPosition()
+                                val duration = audioPlayer.getDuration()
+                                if (duration > 0) current.toFloat() / duration.toFloat() else 0f
+                            } else 0f
+                            updateDebugStatus("恢复播放, 进度: ${(progress * 100).toInt()}%")
+                            binding.richEditText.updateAudioPlaybackState(block.id, true, progress)
                         }
                     } else {
-                        audioPlayer.prepare(url)
-                        audioPlayer.play()
+                        // 切换到新音频
+                        currentPlayingBlockId?.let { oldBlockId ->
+                            binding.richEditText.updateAudioPlaybackState(oldBlockId, false, 0f)
+                            updateDebugStatus("停止旧音频: ${oldBlockId.take(8)}")
+                        }
+                        
+                        currentPlayingBlockId = block.id
+                        updateDebugStatus("准备播放新音频...")
+                        
+                        // 准备并播放新音频
+                        if (audioPlayer.prepare(url)) {
+                            // 等待异步准备完成后播放
+                            playWhenPrepared(block.id, url)
+                        }
                     }
                 }
             }
             BlockType.IMAGE -> {
+                updateDebugStatus("显示图片大图")
                 // 显示大图
                 block.url?.let { imagePath ->
                     showImageViewer(imagePath, block.width ?: 0, block.height ?: 0)
                 }
             }
-            else -> {}
+            else -> {
+                updateDebugStatus("未知媒体类型: ${block.type}")
+            }
+        }
+    }
+    
+    private fun playWhenPrepared(blockId: String, url: String) {
+        val handler = Handler(Looper.getMainLooper())
+        val checkRunnable = object : Runnable {
+            override fun run() {
+                if (audioPlayer.isPrepared()) {
+                    if (currentPlayingBlockId == blockId) { // 确保还是要播放这个音频
+                        audioPlayer.play()
+                        binding.richEditText.updateAudioPlaybackState(blockId, true, 0f)
+                    }
+                } else {
+                    // 继续等待准备完成
+                    handler.postDelayed(this, 50)
+                }
+            }
+        }
+        handler.postDelayed(checkRunnable, 50)
+    }
+    
+    private fun updateDebugStatus(message: String) {
+        // 可以通过设置visibility来控制是否显示调试信息
+        if (binding.debugStatusText.visibility == android.view.View.VISIBLE) {
+            runOnUiThread {
+                debugStep++
+                val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+                binding.debugStatusText.text = "[$debugStep] $timestamp: $message"
+            }
         }
     }
     
@@ -597,6 +677,14 @@ class NoteEditActivity : AppCompatActivity() {
             stopRecording()
         }
         audioPlayer.pause()
+        currentPlayingBlockId?.let { blockId ->
+            val progress = if (audioPlayer.isPrepared()) {
+                val current = audioPlayer.getCurrentPosition()
+                val duration = audioPlayer.getDuration()
+                if (duration > 0) current.toFloat() / duration.toFloat() else 0f
+            } else 0f
+            binding.richEditText.updateAudioPlaybackState(blockId, false, progress)
+        }
     }
     
     @Deprecated("Deprecated in Java")

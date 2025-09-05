@@ -183,6 +183,79 @@ class RichEditText @JvmOverloads constructor(
         builder.setSpan(span, position, position + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
     }
     
+    fun updateAudioPlaybackState(blockId: String, isPlaying: Boolean, progress: Float) {
+        val text = text ?: return
+        val spans = text.getSpans(0, text.length, AudioMediaSpan::class.java)
+        
+        // 通过Context获取Activity并更新调试信息
+        val activity = context as? com.example.xnote.NoteEditActivity
+        activity?.let { act ->
+            val method = act.javaClass.getDeclaredMethod("updateDebugStatus", String::class.java)
+            method.isAccessible = true
+            method.invoke(act, "RichEditText: 查找到${spans.size}个音频Span")
+        }
+        
+        var updated = false
+        var targetSpan: AudioMediaSpan? = null
+        for (audioSpan in spans) {
+            if (audioSpan.block.id == blockId) {
+                audioSpan.setPlayingState(isPlaying, progress)
+                targetSpan = audioSpan
+                updated = true
+                activity?.let { act ->
+                    val method = act.javaClass.getDeclaredMethod("updateDebugStatus", String::class.java)
+                    method.isAccessible = true
+                    method.invoke(act, "找到目标Span: ${blockId.take(8)}, 设置状态: $isPlaying")
+                }
+            } else if (audioSpan.isPlaying) {
+                // 只有当前正在播放的其他音频才需要停止
+                audioSpan.setPlayingState(false, 0f)
+                updated = true
+            }
+        }
+        
+        if (updated && targetSpan != null) {
+            // 强制刷新显示 - 使用最有效的重绘方式
+            post {
+                // 通知系统Span已更改（这是关键修复）
+                val currentText = text
+                if (currentText is android.text.Spannable && targetSpan != null) {
+                    val spanStart = currentText.getSpanStart(targetSpan)
+                    val spanEnd = currentText.getSpanEnd(targetSpan)
+                    if (spanStart >= 0 && spanEnd >= 0) {
+                        // 移除并重新添加span来触发重绘
+                        currentText.removeSpan(targetSpan)
+                        currentText.setSpan(targetSpan, spanStart, spanEnd, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+                }
+                
+                // 标准重绘调用
+                invalidate()
+                requestLayout()
+            }
+        } else {
+            activity?.let { act ->
+                val method = act.javaClass.getDeclaredMethod("updateDebugStatus", String::class.java)
+                method.isAccessible = true
+                method.invoke(act, "未找到目标Span: ${blockId.take(8)}")
+            }
+        }
+        
+        android.util.Log.d("RichEditText", "Updated audio state: blockId=$blockId, playing=$isPlaying, progress=$progress")
+    }
+    
+    /**
+     * 获取音频块的播放状态
+     */
+    fun getAudioPlaybackState(blockId: String): Pair<Boolean, Float>? {
+        val text = text ?: return null
+        val spans = text.getSpans(0, text.length, AudioMediaSpan::class.java)
+        
+        return spans.find { it.block.id == blockId }?.let { audioSpan ->
+            Pair(audioSpan.isPlaying, audioSpan.playProgress)
+        }
+    }
+    
     private fun notifyContentChanged() {
         onContentChangedListener?.invoke(toBlocks())
     }
@@ -190,8 +263,8 @@ class RichEditText @JvmOverloads constructor(
     private var downX = 0f
     private var downY = 0f
     private var downTime = 0L
-    private val touchSlop = 10f // 触摸阈值，超过这个距离认为是滑动
-    private val clickTimeout = 300L // 点击超时，超过这个时间认为是长按
+    private val touchSlop = 20f // 触摸阈值，超过这个距离认为是滑动
+    private val clickTimeout = 500L // 点击超时，超过这个时间认为是长按
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.action) {
@@ -208,16 +281,24 @@ class RichEditText @JvmOverloads constructor(
                 val deltaY = Math.abs(event.y - downY)
                 val isClick = deltaX < touchSlop && deltaY < touchSlop && deltaTime < clickTimeout
                 
+                android.util.Log.d("RichEditText", "ACTION_UP: isClick=$isClick, deltaX=$deltaX, deltaY=$deltaY, deltaTime=$deltaTime")
+                
                 if (isClick) {
                     // 这是一个真正的点击，检查是否点击了媒体
                     val offset = getOffsetForPosition(event.x, event.y)
                     val spans = text?.getSpans(offset, offset, MediaSpan::class.java)
                     
+                    android.util.Log.d("RichEditText", "Click detected at offset=$offset, spans count=${spans?.size ?: 0}")
+                    
                     spans?.firstOrNull()?.let { span ->
+                        android.util.Log.d("RichEditText", "Found span: ${span.javaClass.simpleName}, blockId=${span.block.id}")
                         // 进一步检查是否真的点击在媒体内容区域内
                         if (isClickOnMediaContent(event.x, event.y, offset, span)) {
+                            android.util.Log.d("RichEditText", "Click on media content confirmed, invoking listener")
                             onMediaClickListener?.invoke(span.block)
                             return true
+                        } else {
+                            android.util.Log.d("RichEditText", "Click not on media content area")
                         }
                     }
                 }
@@ -399,8 +480,30 @@ class AudioMediaSpan(
         textSize = 14f * context.resources.displayMetrics.density
     }
     
+    // 播放状态管理
+    var isPlaying = false
+        private set
+    var playProgress = 0f // 播放进度 0.0-1.0
+        private set
+    
+    /**
+     * 设置播放状态
+     */
+    fun setPlayingState(playing: Boolean, progress: Float = 0f) {
+        isPlaying = playing
+        playProgress = progress.coerceIn(0f, 1f)
+        
+        // 可选：保留少量调试信息
+        val activity = context as? com.example.xnote.NoteEditActivity
+        activity?.let { act ->
+            val method = act.javaClass.getDeclaredMethod("updateDebugStatus", String::class.java)
+            method.isAccessible = true
+            method.invoke(act, "♪ ${block.id.take(8)}: ${if(playing) "▶" else "⏸"} ${(progress*100).toInt()}%")
+        }
+    }
+    
     override fun getDisplaySize(): Pair<Int, Int> {
-        return Pair(400, 80)
+        return Pair(800, 160)
     }
     
     override fun draw(
@@ -416,41 +519,75 @@ class AudioMediaSpan(
     ) {
         canvas.save()
         canvas.translate(x, top.toFloat())
-        
+
         // 绘制音频背景
         this.paint.style = Paint.Style.FILL
         this.paint.color = Color.parseColor("#FFF3E0")
-        canvas.drawRoundRect(0f, 0f, 400f, 80f, 10f, 10f, this.paint)
-        
-        // 绘制播放按钮
+        canvas.drawRoundRect(0f, 0f, 800f, 160f, 20f, 20f, this.paint)
+
+        // 绘制播放/暂停按钮
         this.paint.color = Color.parseColor("#FF9800")
-        val centerY = 40f
-        val playButton = Path().apply {
-            moveTo(25f, centerY - 15f)
-            lineTo(50f, centerY)
-            lineTo(25f, centerY + 15f)
-            close()
+        val centerY = 80f
+
+        if (isPlaying) {
+            // 暂停按钮（两个矩形）
+            canvas.drawRect(30f, centerY - 25f, 45f, centerY + 25f, this.paint)
+            canvas.drawRect(55f, centerY - 25f, 70f, centerY + 25f, this.paint)
+        } else {
+            // 播放按钮（三角形）
+            val playButton = Path().apply {
+                moveTo(35f, centerY - 25f)
+                lineTo(80f, centerY)
+                lineTo(35f, centerY + 25f)
+                close()
+            }
+            canvas.drawPath(playButton, this.paint)
         }
-        canvas.drawPath(playButton, this.paint)
-        
+
         // 绘制时长
         this.paint.color = Color.BLACK
         this.paint.style = Paint.Style.FILL
-        this.paint.textSize = 16f * context.resources.displayMetrics.density
+        this.paint.textSize = 28f * context.resources.displayMetrics.density
         val duration = block.duration ?: 0
         val durationText = String.format("%02d:%02d", duration / 60, duration % 60)
-        canvas.drawText(durationText, 80f, centerY + 6f, this.paint)
+        canvas.drawText(durationText, 120f, centerY + 10f, this.paint)
         
+        // 调试时长值
+        val activity = context as? com.example.xnote.NoteEditActivity
+        activity?.let { act ->
+            val method = act.javaClass.getDeclaredMethod("updateDebugStatus", String::class.java)
+            method.isAccessible = true
+            method.invoke(act, "时长调试: blockId=${block.id.take(8)}, duration=${duration}s, 显示=$durationText")
+        }
+
+        // 绘制进度条背景
+        this.paint.color = Color.parseColor("#E0E0E0")
+        val progressBarY = centerY + 40f
+        val progressBarWidth = 600f
+        val progressBarHeight = 8f
+        canvas.drawRoundRect(120f, progressBarY - progressBarHeight/2, 120f + progressBarWidth, progressBarY + progressBarHeight/2, progressBarHeight/2, progressBarHeight/2, this.paint)
+
+        // 绘制进度条
+        this.paint.color = Color.parseColor("#FF9800")
+        val progressWidth = progressBarWidth * playProgress
+        if (progressWidth > 0) {
+            canvas.drawRoundRect(120f, progressBarY - progressBarHeight/2, 120f + progressWidth, progressBarY + progressBarHeight/2, progressBarHeight/2, progressBarHeight/2, this.paint)
+        }
+
+        // 绘制进度指示器
+        this.paint.color = Color.parseColor("#FF6D00")
+        canvas.drawCircle(120f + progressWidth, progressBarY, 12f, this.paint)
+
         // 绘制波形线（简化）
-        this.paint.strokeWidth = 2f
+        this.paint.strokeWidth = 3f
         this.paint.style = Paint.Style.STROKE
         this.paint.color = Color.parseColor("#FFCC80")
-        for (i in 0..20) {
-            val x1 = 120f + i * 8f
-            val height = (Math.random() * 20 + 5).toFloat()
-            canvas.drawLine(x1, centerY - height/2, x1, centerY + height/2, this.paint)
+        for (i in 0..15) {
+            val x1 = 120f + i * 30f
+            val height = (Math.random() * 30 + 8).toFloat()
+            canvas.drawLine(x1, centerY - height/2 - 50f, x1, centerY + height/2 - 50f, this.paint)
         }
-        
+
         canvas.restore()
     }
 }

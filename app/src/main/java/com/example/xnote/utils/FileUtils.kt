@@ -91,7 +91,7 @@ object FileUtils {
     }
     
     /**
-     * 获取音频时长
+     * 获取音频时长（秒）
      */
     fun getAudioDuration(filePath: String): Long {
         return try {
@@ -99,7 +99,8 @@ object FileUtils {
             retriever.setDataSource(filePath)
             val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
             retriever.release()
-            duration?.toLong() ?: 0L
+            // MediaMetadataRetriever returns milliseconds, convert to seconds
+            (duration?.toLong() ?: 0L) / 1000
         } catch (e: Exception) {
             e.printStackTrace()
             0L
