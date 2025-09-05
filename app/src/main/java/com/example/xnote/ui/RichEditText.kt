@@ -272,6 +272,19 @@ class RichEditText @JvmOverloads constructor(
                 downX = event.x
                 downY = event.y
                 downTime = System.currentTimeMillis()
+                
+                // 检查是否点击了媒体内容，如果是则不调用super
+                val offset = getOffsetForPosition(event.x, event.y)
+                val spans = text?.getSpans(offset, offset, MediaSpan::class.java)
+                
+                if (spans?.isNotEmpty() == true) {
+                    val span = spans.first()
+                    if (isClickOnMediaContent(event.x, event.y, offset, span)) {
+                        // 点击在媒体内容上，不调用super避免开始文本选择
+                        return true
+                    }
+                }
+                
                 return super.onTouchEvent(event)
             }
             MotionEvent.ACTION_UP -> {
@@ -296,7 +309,7 @@ class RichEditText @JvmOverloads constructor(
                         if (isClickOnMediaContent(event.x, event.y, offset, span)) {
                             android.util.Log.d("RichEditText", "Click on media content confirmed, invoking listener")
                             onMediaClickListener?.invoke(span.block)
-                            return true
+                            return true // 直接返回true，不调用super，避免文本选择
                         } else {
                             android.util.Log.d("RichEditText", "Click not on media content area")
                         }
@@ -551,14 +564,6 @@ class AudioMediaSpan(
         val duration = block.duration ?: 0
         val durationText = String.format("%02d:%02d", duration / 60, duration % 60)
         canvas.drawText(durationText, 120f, centerY + 10f, this.paint)
-        
-        // 调试时长值
-        val activity = context as? com.example.xnote.NoteEditActivity
-        activity?.let { act ->
-            val method = act.javaClass.getDeclaredMethod("updateDebugStatus", String::class.java)
-            method.isAccessible = true
-            method.invoke(act, "时长调试: blockId=${block.id.take(8)}, duration=${duration}s, 显示=$durationText")
-        }
 
         // 绘制进度条背景
         this.paint.color = Color.parseColor("#E0E0E0")
