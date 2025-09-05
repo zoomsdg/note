@@ -187,18 +187,77 @@ class RichEditText @JvmOverloads constructor(
         onContentChangedListener?.invoke(toBlocks())
     }
     
+    private var downX = 0f
+    private var downY = 0f
+    private var downTime = 0L
+    private val touchSlop = 10f // 触摸阈值，超过这个距离认为是滑动
+    private val clickTimeout = 300L // 点击超时，超过这个时间认为是长按
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (event.action == MotionEvent.ACTION_DOWN) {
-            val offset = getOffsetForPosition(event.x, event.y)
-            val spans = text?.getSpans(offset, offset, MediaSpan::class.java)
-            
-            spans?.firstOrNull()?.let { span ->
-                onMediaClickListener?.invoke(span.block)
-                return true
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x
+                downY = event.y
+                downTime = System.currentTimeMillis()
+                return super.onTouchEvent(event)
             }
+            MotionEvent.ACTION_UP -> {
+                val upTime = System.currentTimeMillis()
+                val deltaTime = upTime - downTime
+                val deltaX = Math.abs(event.x - downX)
+                val deltaY = Math.abs(event.y - downY)
+                val isClick = deltaX < touchSlop && deltaY < touchSlop && deltaTime < clickTimeout
+                
+                if (isClick) {
+                    // 这是一个真正的点击，检查是否点击了媒体
+                    val offset = getOffsetForPosition(event.x, event.y)
+                    val spans = text?.getSpans(offset, offset, MediaSpan::class.java)
+                    
+                    spans?.firstOrNull()?.let { span ->
+                        // 进一步检查是否真的点击在媒体内容区域内
+                        if (isClickOnMediaContent(event.x, event.y, offset, span)) {
+                            onMediaClickListener?.invoke(span.block)
+                            return true
+                        }
+                    }
+                }
+                return super.onTouchEvent(event)
+            }
+            else -> return super.onTouchEvent(event)
         }
-        
-        return super.onTouchEvent(event)
+    }
+    
+    /**
+     * 检查点击是否在媒体内容区域内（而不是空白区域）
+     */
+    private fun isClickOnMediaContent(x: Float, y: Float, offset: Int, span: MediaSpan): Boolean {
+        try {
+            val layout = layout ?: return false
+            val line = layout.getLineForOffset(offset)
+            val lineStart = layout.getLineStart(line)
+            val lineBaseline = layout.getLineBaseline(line)
+            val lineLeft = layout.getLineLeft(line)
+            
+            // 获取span在这一行的位置
+            val spanStart = text?.getSpanStart(span) ?: return false
+            val spanEnd = text?.getSpanEnd(span) ?: return false
+            
+            if (offset >= spanStart && offset < spanEnd) {
+                // 计算媒体内容的实际显示区域
+                val (width, height) = span.getDisplaySize()
+                val spanStartX = layout.getPrimaryHorizontal(spanStart)
+                val spanLeft = lineLeft + spanStartX
+                val spanTop = lineBaseline - height
+                val spanRight = spanLeft + width
+                val spanBottom = lineBaseline
+                
+                // 检查点击是否在实际内容区域内
+                return x >= spanLeft && x <= spanRight && y >= spanTop && y <= spanBottom
+            }
+        } catch (e: Exception) {
+            SecurityLog.e("RichEditText", "Error checking media content click", e)
+        }
+        return false
     }
 }
 

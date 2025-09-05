@@ -549,7 +549,10 @@ class NoteEditActivity : AppCompatActivity() {
                 }
             }
             BlockType.IMAGE -> {
-                // 处理图片点击，可以显示大图
+                // 显示大图
+                block.url?.let { imagePath ->
+                    showImageViewer(imagePath, block.width ?: 0, block.height ?: 0)
+                }
             }
             else -> {}
         }
@@ -691,6 +694,72 @@ class NoteEditActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 Toast.makeText(this@NoteEditActivity, "创建分类失败", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+    
+    private fun showImageViewer(imagePath: String, width: Int, height: Int) {
+        try {
+            // 先检查文件是否存在
+            val file = java.io.File(imagePath)
+            if (!file.exists()) {
+                Toast.makeText(this, "图片文件不存在", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 使用简单的全屏对话框
+            val dialog = android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+            dialog.setContentView(R.layout.dialog_image_viewer)
+            
+            // 获取视图
+            val imageView = dialog.findViewById<android.widget.ImageView>(R.id.imageView)
+            val btnClose = dialog.findViewById<android.widget.ImageButton>(R.id.btnClose)
+            val layoutImageInfo = dialog.findViewById<android.widget.LinearLayout>(R.id.layoutImageInfo)
+            val tvImageSize = dialog.findViewById<android.widget.TextView>(R.id.tvImageSize)
+            val tvImagePath = dialog.findViewById<android.widget.TextView>(R.id.tvImagePath)
+            
+            // 加载并显示图片
+            val bitmap = android.graphics.BitmapFactory.decodeFile(imagePath)
+            if (bitmap != null) {
+                imageView.setImageBitmap(bitmap)
+                
+                // 显示图片信息
+                tvImageSize.text = "${bitmap.width} × ${bitmap.height}"
+                tvImagePath.text = file.name
+                layoutImageInfo.visibility = View.VISIBLE
+                
+                SecurityLog.d("ImageViewer", "Successfully loaded bitmap: ${bitmap.width}x${bitmap.height}")
+            } else {
+                // 图片加载失败，显示占位图
+                imageView.setImageResource(android.R.drawable.ic_menu_gallery)
+                tvImageSize.text = "无法加载"
+                tvImagePath.text = file.name
+                layoutImageInfo.visibility = View.VISIBLE
+                
+                SecurityLog.e("ImageViewer", "Failed to decode bitmap")
+            }
+            
+            // 关闭按钮
+            btnClose.setOnClickListener {
+                dialog.dismiss()
+            }
+            
+            // 点击图片关闭
+            imageView.setOnClickListener {
+                dialog.dismiss()
+            }
+            
+            // 点击背景关闭
+            val rootView = dialog.findViewById<View>(android.R.id.content)
+            rootView?.setOnClickListener {
+                dialog.dismiss()
+            }
+            
+            // 显示对话框
+            dialog.show()
+            
+        } catch (e: Exception) {
+            SecurityLog.e("ImageViewer", "Exception in showImageViewer", e)
+            Toast.makeText(this, "显示图片时出错: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
     
