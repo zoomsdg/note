@@ -11,6 +11,7 @@ import android.view.MenuItem
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -65,6 +66,9 @@ class MainActivity : AppCompatActivity() {
         
         // 搜索相关事件
         setupSearchFunctionality()
+        
+        // 设置分类过滤
+        setupCategoryFilter()
         
         // 删除功能已移至菜单，移除底部操作栏相关代码
     }
@@ -123,11 +127,66 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
+    private fun setupCategoryFilter() {
+        // 初始化分类过滤UI将在observeViewModel中处理
+    }
+    
+    private fun createCategoryChips(categories: List<com.example.xnote.data.Category>, selectedCategoryId: String?) {
+        binding.categoryChipsContainer.removeAllViews()
+        
+        // 添加"全部"选项
+        val allButton = createCategoryChip("全部", null, selectedCategoryId == null)
+        binding.categoryChipsContainer.addView(allButton)
+        
+        // 添加分类选项
+        categories.forEach { category ->
+            val chipButton = createCategoryChip(category.name, category.id, category.id == selectedCategoryId)
+            binding.categoryChipsContainer.addView(chipButton)
+        }
+    }
+    
+    private fun createCategoryChip(text: String, categoryId: String?, isSelected: Boolean): Button {
+        return Button(this).apply {
+            this.text = text
+            this.isSelected = isSelected
+            setBackgroundResource(R.drawable.category_chip_selector)
+            setTextColor(if (isSelected) 
+                getColor(R.color.white) else getColor(R.color.primary_text))
+            setPadding(32, 16, 32, 16)
+            textSize = 14f
+            
+            val params = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            params.setMargins(0, 0, 16, 0)
+            layoutParams = params
+            
+            setOnClickListener {
+                viewModel.selectCategory(categoryId)
+            }
+        }
+    }
+    
     private fun observeViewModel() {
         lifecycleScope.launch {
             viewModel.notes.collect { notes ->
                 noteAdapter.submitList(notes)
                 updateEmptyState(notes.isEmpty())
+            }
+        }
+        
+        lifecycleScope.launch {
+            viewModel.categories.collect { categories ->
+                // 创建分类过滤chips
+                createCategoryChips(categories, viewModel.selectedCategoryId.value)
+            }
+        }
+        
+        lifecycleScope.launch {
+            viewModel.selectedCategoryId.collect { selectedCategoryId ->
+                // 更新分类chips选中状态
+                createCategoryChips(viewModel.categories.value, selectedCategoryId)
             }
         }
         

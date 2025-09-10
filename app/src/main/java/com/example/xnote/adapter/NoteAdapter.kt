@@ -77,8 +77,43 @@ class NoteAdapter(
         
         fun bind(noteSummary: NoteSummary) {
             binding.apply {
-                tvTitle.text = noteSummary.title.ifEmpty { "无标题" }
-                tvPreview.text = noteSummary.preview.ifEmpty { "空记事" }
+                // 解析预览文本为行
+                val contentLines = noteSummary.preview
+                    .replace("\\n", "\n") // 处理转义的换行符
+                    .split("\n")
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                
+                // 根据标题是否为空决定显示内容
+                if (noteSummary.title.isNotEmpty()) {
+                    // 有标题：第一行显示标题，第二行显示正文第一行
+                    tvLine1.text = noteSummary.title
+                    tvLine1.textSize = 16f
+                    tvLine1.setTypeface(null, android.graphics.Typeface.BOLD)
+                    
+                    tvLine2.text = if (contentLines.isNotEmpty()) {
+                        contentLines[0]
+                    } else {
+                        "空记事"
+                    }
+                } else {
+                    // 无标题：第一二行显示正文内容
+                    tvLine1.text = if (contentLines.isNotEmpty()) {
+                        contentLines[0]
+                    } else {
+                        "空记事"
+                    }
+                    tvLine1.textSize = 14f
+                    tvLine1.setTypeface(null, android.graphics.Typeface.NORMAL)
+                    
+                    tvLine2.text = if (contentLines.size > 1) {
+                        contentLines[1]
+                    } else {
+                        ""
+                    }
+                }
+                
+                // 第三行：修改时间和块数量
                 tvDate.text = dateFormat.format(Date(noteSummary.lastModified))
                 tvBlockCount.text = "${noteSummary.blockCount} 项"
                 

@@ -3,6 +3,7 @@ package com.example.xnote.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.xnote.data.Category
 import com.example.xnote.data.NoteSummary
 import com.example.xnote.repository.NoteRepository
 import com.example.xnote.utils.ExportImportUtils
@@ -17,6 +18,12 @@ class MainViewModel(
     private val repository: NoteRepository
 ) : ViewModel() {
     
+    private val _categories = MutableStateFlow<List<Category>>(emptyList())
+    val categories: StateFlow<List<Category>> = _categories.asStateFlow()
+    
+    private val _selectedCategoryId = MutableStateFlow<String?>(null)
+    val selectedCategoryId: StateFlow<String?> = _selectedCategoryId.asStateFlow()
+    
     private val _notes = MutableStateFlow<List<NoteSummary>>(emptyList())
     val notes: StateFlow<List<NoteSummary>> = _notes.asStateFlow()
     
@@ -29,15 +36,36 @@ class MainViewModel(
     private var searchJob: Job? = null
     
     init {
+        loadCategories()
         loadNotes()
+    }
+    
+    private fun loadCategories() {
+        viewModelScope.launch {
+            _categories.value = repository.getAllCategories()
+        }
     }
     
     private fun loadNotes() {
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
-            repository.getNoteSummaries().collect { noteList ->
+            val selectedCategory = _selectedCategoryId.value
+            val notesFlow = if (selectedCategory == null) {
+                repository.getNoteSummaries()
+            } else {
+                repository.getNoteSummariesByCategory(selectedCategory)
+            }
+            
+            notesFlow.collect { noteList ->
                 _notes.value = noteList
             }
+        }
+    }
+    
+    fun selectCategory(categoryId: String?) {
+        _selectedCategoryId.value = categoryId
+        if (!_isSearchMode.value) {
+            loadNotes()
         }
     }
     

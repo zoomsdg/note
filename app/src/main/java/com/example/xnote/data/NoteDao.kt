@@ -50,6 +50,22 @@ interface NoteDao {
     """)
     fun searchNoteSummaries(searchQuery: String): Flow<List<NoteSummary>>
     
+    @Query("""
+        SELECT 
+        n.id as id,
+        n.title as title,
+        COALESCE(GROUP_CONCAT(CASE WHEN b.type = 'TEXT' THEN b.text ELSE '' END, ' '), '') as preview,
+        n.updatedAt as lastModified,
+        COUNT(b.id) as blockCount,
+        n.categoryId as categoryId
+        FROM notes n 
+        LEFT JOIN note_blocks b ON n.id = b.noteId 
+        WHERE n.categoryId = :categoryId
+        GROUP BY n.id 
+        ORDER BY n.updatedAt DESC
+    """)
+    fun getNoteSummariesByCategory(categoryId: String): Flow<List<NoteSummary>>
+    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertNote(note: Note)
     

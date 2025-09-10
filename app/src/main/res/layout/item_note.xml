@@ -32,27 +32,27 @@
             android:orientation="vertical">
 
         <TextView
-            android:id="@+id/tvTitle"
+            android:id="@+id/tvLine1"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="18sp"
+            android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="@color/primary_text"
-            android:maxLines="2"
+            android:maxLines="1"
             android:ellipsize="end"
-            android:layout_marginBottom="8dp"
-            tools:text="记事标题" />
+            android:layout_marginBottom="4dp"
+            tools:text="第一行内容" />
 
         <TextView
-            android:id="@+id/tvPreview"
+            android:id="@+id/tvLine2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textSize="14sp"
             android:textColor="@color/secondary_text"
-            android:maxLines="3"
+            android:maxLines="1"
             android:ellipsize="end"
-            android:layout_marginBottom="8dp"
-            tools:text="记事内容预览文本..." />
+            android:layout_marginBottom="4dp"
+            tools:text="第二行内容" />
 
         <LinearLayout
             android:layout_width="match_parent"

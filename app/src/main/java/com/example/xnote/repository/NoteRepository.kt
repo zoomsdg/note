@@ -60,6 +60,11 @@ class NoteRepository(val context: Context) {
     fun searchNoteSummaries(searchQuery: String): Flow<List<NoteSummary>> = 
         noteDao.searchNoteSummaries(searchQuery)
     
+    fun getNoteSummariesByCategory(categoryId: String): Flow<List<NoteSummary>> = 
+        noteDao.getNoteSummariesByCategory(categoryId)
+    
+    suspend fun getAllCategories(): List<Category> = categoryDao.getAllCategoriesOnce()
+    
     suspend fun getNoteById(noteId: String): Note? = noteDao.getNoteById(noteId)
     
     suspend fun getFullNote(noteId: String): FullNote? = noteDao.getFullNote(noteId)
@@ -213,8 +218,6 @@ class NoteRepository(val context: Context) {
     }
     
     // 分类相关方法
-    fun getAllCategories(): Flow<List<Category>> = categoryDao.getAllCategories()
-    
     suspend fun getAllCategoriesOnce(): List<Category> = categoryDao.getAllCategoriesOnce()
     
     suspend fun getCategoryById(categoryId: String): Category? = categoryDao.getCategoryById(categoryId)
