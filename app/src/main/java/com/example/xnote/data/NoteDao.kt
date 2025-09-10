@@ -90,6 +90,9 @@ interface NoteDao {
     @Query("DELETE FROM note_blocks WHERE id = :blockId")
     suspend fun deleteBlock(blockId: String)
     
+    @Query("SELECT * FROM notes WHERE categoryId = :categoryId")
+    suspend fun getAllNotesInCategory(categoryId: String): List<Note>
+    
     @Transaction
     suspend fun saveFullNote(fullNote: FullNote) {
         insertNote(fullNote.note)

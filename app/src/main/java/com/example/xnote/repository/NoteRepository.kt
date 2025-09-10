@@ -240,4 +240,23 @@ class NoteRepository(val context: Context) {
             updateNote(note.copy(categoryId = categoryId, updatedAt = System.currentTimeMillis()))
         }
     }
+    
+    suspend fun deleteCategory(categoryId: String) {
+        // 防止删除默认分类
+        if (categoryId == "daily" || categoryId == "work" || categoryId == "thoughts") {
+            throw IllegalArgumentException("Cannot delete default categories")
+        }
+        
+        val category = categoryDao.getCategoryById(categoryId)
+        if (category != null) {
+            // 先将此分类的所有记事转移到"日常"分类
+            val notesWithCategory = noteDao.getAllNotesInCategory(categoryId)
+            notesWithCategory.forEach { note ->
+                updateNote(note.copy(categoryId = "daily", updatedAt = System.currentTimeMillis()))
+            }
+            
+            // 删除分类
+            categoryDao.deleteCategory(category)
+        }
+    }
 }

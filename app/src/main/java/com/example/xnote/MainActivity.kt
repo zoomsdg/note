@@ -54,6 +54,12 @@ class MainActivity : AppCompatActivity() {
         observeViewModel()
     }
     
+    override fun onResume() {
+        super.onResume()
+        // 重新加载分类数据，确保从编辑页面返回时能看到新创建的分类
+        viewModel.refreshCategories()
+    }
+    
     private fun setupUI() {
         setSupportActionBar(binding.toolbar)
         
@@ -152,18 +158,68 @@ class MainActivity : AppCompatActivity() {
             setBackgroundResource(R.drawable.category_chip_selector)
             setTextColor(if (isSelected) 
                 getColor(R.color.white) else getColor(R.color.primary_text))
-            setPadding(32, 16, 32, 16)
-            textSize = 14f
+            setPadding(16, 6, 16, 6)  // 更小的padding，紧贴文字
+            textSize = 12f  // 稍微减小字体
+            
+            // 重要：移除默认的最小尺寸限制
+            minWidth = 0
+            minHeight = 0
+            minimumWidth = 0
+            minimumHeight = 0
+            
+            // 设置文字居中
+            gravity = android.view.Gravity.CENTER
             
             val params = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
             )
-            params.setMargins(0, 0, 16, 0)
+            params.setMargins(0, 0, 10, 0)  // 进一步减少间距
             layoutParams = params
             
             setOnClickListener {
                 viewModel.selectCategory(categoryId)
+            }
+            
+            // 长按删除分类（除了"全部"和默认分类）
+            if (categoryId != null && !isDefaultCategory(categoryId)) {
+                setOnLongClickListener {
+                    showDeleteCategoryDialog(text, categoryId)
+                    true
+                }
+            }
+        }
+    }
+    
+    private fun isDefaultCategory(categoryId: String): Boolean {
+        return categoryId == "daily" || categoryId == "work" || categoryId == "thoughts"
+    }
+    
+    private fun showDeleteCategoryDialog(categoryName: String, categoryId: String) {
+        AlertDialog.Builder(this)
+            .setTitle("删除分类")
+            .setMessage("确定要删除分类「$categoryName」吗？\n\n该分类下的所有记事将转移到「日常」分类。")
+            .setPositiveButton("删除") { _, _ ->
+                deleteCategoryWithConfirmation(categoryId, categoryName)
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    private fun deleteCategoryWithConfirmation(categoryId: String, categoryName: String) {
+        lifecycleScope.launch {
+            try {
+                viewModel.deleteCategory(categoryId)
+                Toast.makeText(this@MainActivity, "已删除分类「$categoryName」", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                when {
+                    e.message?.contains("Cannot delete default categories") == true -> {
+                        Toast.makeText(this@MainActivity, "不能删除默认分类", Toast.LENGTH_SHORT).show()
+                    }
+                    else -> {
+                        Toast.makeText(this@MainActivity, "删除分类失败：${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
         }
     }

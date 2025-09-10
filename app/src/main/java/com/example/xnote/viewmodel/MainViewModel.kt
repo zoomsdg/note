@@ -46,6 +46,10 @@ class MainViewModel(
         }
     }
     
+    fun refreshCategories() {
+        loadCategories()
+    }
+    
     private fun loadNotes() {
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
@@ -99,6 +103,16 @@ class MainViewModel(
     //./suspend fun createNewNote(title: String = "无标题"): String {
     suspend fun createNewNote(title: String = ""): String {
         return repository.createNewNote(title)
+    }
+    
+    suspend fun deleteCategory(categoryId: String) {
+        repository.deleteCategory(categoryId)
+        // 重新加载分类列表
+        loadCategories()
+        // 如果当前选中的分类被删除，切换到全部
+        if (_selectedCategoryId.value == categoryId) {
+            selectCategory(null)
+        }
     }
     
     suspend fun deleteNote(noteId: String) {
