@@ -3,8 +3,8 @@
     <!-- 排除敏感数据不被备份 -->
     <exclude domain="database" />
     <exclude domain="sharedpref" />
+    <!-- 排除媒体文件不被备份 -->
     <exclude domain="file" path="images/" />
+    <exclude domain="file" path="audios/" />
     <exclude domain="file" path="audio/" />
-    <!-- 只备份非敏感的配置文件 -->
-    <include domain="file" path="configs/" />
 </full-backup-content>
