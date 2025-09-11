@@ -563,11 +563,17 @@ class AudioMediaSpan(
         this.paint.textSize = 20f * context.resources.displayMetrics.density
         val duration = block.duration ?: 0
         val durationText = String.format("%02d:%02d", duration / 60, duration % 60)
-        canvas.drawText(durationText, 120f, centerY + 10f, this.paint)
+    // 计算时长文字的y轴中心
+    val timeTextY = centerY + 20f
+    canvas.drawText(durationText, 120f, timeTextY, this.paint)
+
+    // 计算时长文字宽度
+    val textWidth = this.paint.measureText(durationText)
+    val waveStartX = 120f + textWidth + 20f // 20f为间距，可调整
 
         // 绘制进度条背景
         this.paint.color = Color.parseColor("#E0E0E0")
-        val progressBarY = centerY + 40f
+        val progressBarY = centerY + 30f
         val progressBarWidth = 600f
         val progressBarHeight = 8f
         canvas.drawRoundRect(120f, progressBarY - progressBarHeight/2, 120f + progressBarWidth, progressBarY + progressBarHeight/2, progressBarHeight/2, progressBarHeight/2, this.paint)
@@ -587,10 +593,12 @@ class AudioMediaSpan(
         this.paint.strokeWidth = 3f
         this.paint.style = Paint.Style.STROKE
         this.paint.color = Color.parseColor("#FFCC80")
+        // 让波形线的纵向中心与时长文字的纵向中心一致
         for (i in 0..15) {
-            val x1 = 160f + i * 30f//./120f
+            val x1 = waveStartX + i * 30f//./120-160
             val height = (Math.random() * 30 + 8).toFloat()
-            canvas.drawLine(x1, centerY - height/2 - 50f, x1, centerY + height/2 - 50f, this.paint)
+            // 以 timeTextY 为中心
+            canvas.drawLine(x1, timeTextY - height/2, x1, timeTextY + height/2, this.paint)
         }
 
         canvas.restore()
