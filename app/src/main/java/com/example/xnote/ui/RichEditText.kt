@@ -544,14 +544,14 @@ class AudioMediaSpan(
 
         if (isPlaying) {
             // 暂停按钮（两个矩形）
-            canvas.drawRect(30f, centerY - 25f, 45f, centerY + 25f, this.paint)
-            canvas.drawRect(55f, centerY - 25f, 70f, centerY + 25f, this.paint)
+            canvas.drawRect(30f, centerY - 30f, 45f, centerY + 30f, this.paint)
+            canvas.drawRect(55f, centerY - 30f, 70f, centerY + 30f, this.paint)
         } else {
             // 播放按钮（三角形）
             val playButton = Path().apply {
-                moveTo(35f, centerY - 25f)
-                lineTo(80f, centerY)
-                lineTo(35f, centerY + 25f)
+                moveTo(35f, centerY - 30f)
+                lineTo(90f, centerY)
+                lineTo(35f, centerY + 30f)
                 close()
             }
             canvas.drawPath(playButton, this.paint)
@@ -564,7 +564,7 @@ class AudioMediaSpan(
         val duration = block.duration ?: 0
         val durationText = String.format("%02d:%02d", duration / 60, duration % 60)
     // 计算时长文字的y轴中心
-    val timeTextY = centerY + 20f
+    val timeTextY = centerY + 10f
     canvas.drawText(durationText, 120f, timeTextY, this.paint)
 
     // 计算时长文字宽度
@@ -586,19 +586,19 @@ class AudioMediaSpan(
         }
 
         // 绘制进度指示器
-        this.paint.color = Color.parseColor("#FF6D00")
+        this.paint.color = Color.parseColor("#bd0707ff")
         canvas.drawCircle(120f + progressWidth, progressBarY, 12f, this.paint)
 
         // 绘制波形线（简化）
         this.paint.strokeWidth = 3f
         this.paint.style = Paint.Style.STROKE
-        this.paint.color = Color.parseColor("#FFCC80")
+        this.paint.color = Color.parseColor("#ec0909ff")
         // 让波形线的纵向中心与时长文字的纵向中心一致
         for (i in 0..15) {
             val x1 = waveStartX + i * 30f//./120-160
             val height = (Math.random() * 30 + 8).toFloat()
             // 以 timeTextY 为中心
-            canvas.drawLine(x1, timeTextY - height/2, x1, timeTextY + height/2, this.paint)
+            canvas.drawLine(x1, timeTextY - 15f - height/2, x1, timeTextY - 15f+ height/2, this.paint)
         }
 
         canvas.restore()
