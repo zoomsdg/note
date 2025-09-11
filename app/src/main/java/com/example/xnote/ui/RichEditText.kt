@@ -560,7 +560,7 @@ class AudioMediaSpan(
         // 绘制时长
         this.paint.color = Color.BLACK
         this.paint.style = Paint.Style.FILL
-        this.paint.textSize = 28f * context.resources.displayMetrics.density
+        this.paint.textSize = 20f * context.resources.displayMetrics.density
         val duration = block.duration ?: 0
         val durationText = String.format("%02d:%02d", duration / 60, duration % 60)
         canvas.drawText(durationText, 120f, centerY + 10f, this.paint)
@@ -588,7 +588,7 @@ class AudioMediaSpan(
         this.paint.style = Paint.Style.STROKE
         this.paint.color = Color.parseColor("#FFCC80")
         for (i in 0..15) {
-            val x1 = 120f + i * 30f
+            val x1 = 160f + i * 30f//./120f
             val height = (Math.random() * 30 + 8).toFloat()
             canvas.drawLine(x1, centerY - height/2 - 50f, x1, centerY + height/2 - 50f, this.paint)
         }

@@ -60,6 +60,94 @@ class NoteRepository(val context: Context) {
     fun searchNoteSummaries(searchQuery: String): Flow<List<NoteSummary>> = 
         noteDao.searchNoteSummaries(searchQuery)
     
+    /**
+     * 智能搜索功能：支持文本搜索和日期格式搜索
+     * 日期格式示例：202503 -> 2025年3月, 20250315 -> 2025年3月15日
+     */
+    fun smartSearchNoteSummaries(searchQuery: String): Flow<List<NoteSummary>> {
+        val dateRange = parseDateQuery(searchQuery)
+        return if (dateRange != null) {
+            // 如果是纯数字日期查询，优先使用时间范围搜索
+            // 同时也返回包含该数字的文本搜索结果，使用OR逻辑
+            noteDao.searchNoteSummariesWithDateOrText(searchQuery, dateRange.first, dateRange.second)
+        } else {
+            // 普通文本搜索
+            noteDao.searchNoteSummaries(searchQuery)
+        }
+    }
+    
+    /**
+     * 解析日期查询字符串
+     * 支持格式：
+     * - 202503 -> 2025年3月
+     * - 20250315 -> 2025年3月15日
+     * - 2025 -> 2025年
+     */
+    private fun parseDateQuery(query: String): Pair<Long, Long>? {
+        try {
+            // 检查是否为纯数字
+            if (!query.matches(Regex("\\d+"))) {
+                return null
+            }
+            
+            val calendar = java.util.Calendar.getInstance()
+            
+            when (query.length) {
+                4 -> {
+                    // 年份格式：2025
+                    val year = query.toInt()
+                    if (year < 1900 || year > 2100) return null
+                    
+                    calendar.set(year, 0, 1, 0, 0, 0)
+                    calendar.set(java.util.Calendar.MILLISECOND, 0)
+                    val startTime = calendar.timeInMillis
+                    
+                    calendar.set(year, 11, 31, 23, 59, 59)
+                    calendar.set(java.util.Calendar.MILLISECOND, 999)
+                    val endTime = calendar.timeInMillis
+                    
+                    return Pair(startTime, endTime)
+                }
+                6 -> {
+                    // 年月格式：202503
+                    val year = query.substring(0, 4).toInt()
+                    val month = query.substring(4, 6).toInt()
+                    if (year < 1900 || year > 2100 || month < 1 || month > 12) return null
+                    
+                    calendar.set(year, month - 1, 1, 0, 0, 0)
+                    calendar.set(java.util.Calendar.MILLISECOND, 0)
+                    val startTime = calendar.timeInMillis
+                    
+                    calendar.set(year, month - 1, calendar.getActualMaximum(java.util.Calendar.DAY_OF_MONTH), 23, 59, 59)
+                    calendar.set(java.util.Calendar.MILLISECOND, 999)
+                    val endTime = calendar.timeInMillis
+                    
+                    return Pair(startTime, endTime)
+                }
+                8 -> {
+                    // 年月日格式：20250315
+                    val year = query.substring(0, 4).toInt()
+                    val month = query.substring(4, 6).toInt()
+                    val day = query.substring(6, 8).toInt()
+                    if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null
+                    
+                    calendar.set(year, month - 1, day, 0, 0, 0)
+                    calendar.set(java.util.Calendar.MILLISECOND, 0)
+                    val startTime = calendar.timeInMillis
+                    
+                    calendar.set(year, month - 1, day, 23, 59, 59)
+                    calendar.set(java.util.Calendar.MILLISECOND, 999)
+                    val endTime = calendar.timeInMillis
+                    
+                    return Pair(startTime, endTime)
+                }
+                else -> return null
+            }
+        } catch (e: Exception) {
+            return null
+        }
+    }
+    
     fun getNoteSummariesByCategory(categoryId: String): Flow<List<NoteSummary>> = 
         noteDao.getNoteSummariesByCategory(categoryId)
     
@@ -148,7 +236,7 @@ class NoteRepository(val context: Context) {
             title = importNote.title,
             categoryId = "daily", // 导入的记事默认分类为日常
             createdAt = importNote.createdAt,
-            updatedAt = System.currentTimeMillis(), // 更新为当前时间
+            updatedAt = importNote.updatedAt, // 使用外部记事自带的修改时间
             version = 1
         )
         
@@ -163,7 +251,9 @@ class NoteRepository(val context: Context) {
                     noteId = note.id,
                     type = importBlock.type,
                     order = importBlock.order,
-                    text = importBlock.text
+                    text = importBlock.text,
+                    createdAt = importNote.createdAt,
+                    updatedAt = importNote.updatedAt
                 )
                 BlockType.IMAGE -> {
                     var filePath: String? = null
@@ -185,7 +275,9 @@ class NoteRepository(val context: Context) {
                         url = filePath,
                         alt = importBlock.alt,
                         width = importBlock.width,
-                        height = importBlock.height
+                        height = importBlock.height,
+                        createdAt = importNote.createdAt,
+                        updatedAt = importNote.updatedAt
                     )
                 }
                 BlockType.AUDIO -> {
@@ -206,7 +298,9 @@ class NoteRepository(val context: Context) {
                         type = importBlock.type,
                         order = importBlock.order,
                         url = filePath,
-                        duration = importBlock.duration
+                        duration = importBlock.duration,
+                        createdAt = importNote.createdAt,
+                        updatedAt = importNote.updatedAt
                     )
                 }
             }

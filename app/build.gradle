@@ -13,15 +13,29 @@ android {
         minSdk 24
         targetSdk 33
         versionCode 1
-        versionName "1.0"
+        versionName "1.2"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
+
+signingConfigs {
+        release {
+            storeFile file("/home/cc/myprojects/my-release-key.keystore")  // keystore 文件路径
+            storePassword "zjdszs"
+            keyAlias "myalias"                        // 刚才生成的 alias
+            keyPassword "zjdszs"
+        }
+    }
+
+
+
 
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+	    
+            signingConfig signingConfigs.release
         }
     }
     compileOptions {

@@ -60,6 +60,66 @@ interface NoteDao {
         n.categoryId as categoryId
         FROM notes n 
         LEFT JOIN note_blocks b ON n.id = b.noteId 
+        WHERE (n.title LIKE '%' || :searchQuery || '%' 
+        OR b.text LIKE '%' || :searchQuery || '%')
+        AND n.updatedAt BETWEEN :startTime AND :endTime
+        GROUP BY n.id 
+        ORDER BY n.updatedAt DESC
+    """)
+    fun searchNoteSummariesWithTimeRange(
+        searchQuery: String, 
+        startTime: Long, 
+        endTime: Long
+    ): Flow<List<NoteSummary>>
+    
+    @Query("""
+        SELECT 
+        n.id as id,
+        n.title as title,
+        COALESCE(GROUP_CONCAT(CASE WHEN b.type = 'TEXT' THEN b.text ELSE '' END, ' '), '') as preview,
+        n.updatedAt as lastModified,
+        COUNT(b.id) as blockCount,
+        n.categoryId as categoryId
+        FROM notes n 
+        LEFT JOIN note_blocks b ON n.id = b.noteId 
+        WHERE (n.title LIKE '%' || :searchQuery || '%' 
+        OR b.text LIKE '%' || :searchQuery || '%'
+        OR n.updatedAt BETWEEN :startTime AND :endTime)
+        GROUP BY n.id 
+        ORDER BY n.updatedAt DESC
+    """)
+    fun searchNoteSummariesWithDateOrText(
+        searchQuery: String, 
+        startTime: Long, 
+        endTime: Long
+    ): Flow<List<NoteSummary>>
+    
+    @Query("""
+        SELECT 
+        n.id as id,
+        n.title as title,
+        COALESCE(GROUP_CONCAT(CASE WHEN b.type = 'TEXT' THEN b.text ELSE '' END, ' '), '') as preview,
+        n.updatedAt as lastModified,
+        COUNT(b.id) as blockCount,
+        n.categoryId as categoryId
+        FROM notes n 
+        LEFT JOIN note_blocks b ON n.id = b.noteId 
+        WHERE n.updatedAt BETWEEN :startTime AND :endTime
+        GROUP BY n.id 
+        ORDER BY n.updatedAt DESC
+    """)
+    fun getNoteSummariesInTimeRange(startTime: Long, endTime: Long): Flow<List<NoteSummary>>
+    
+    @Query("""
+        SELECT 
+        n.id as id,
+        n.title as title,
+        COALESCE(GROUP_CONCAT(CASE WHEN b.type = 'TEXT' THEN b.text ELSE '' END, ' '), '') as preview,
+        n.updatedAt as lastModified,
+        COUNT(b.id) as blockCount,
+        n.categoryId as categoryId
+        FROM notes n 
+        LEFT JOIN note_blocks b ON n.id = b.noteId 
         WHERE n.categoryId = :categoryId
         GROUP BY n.id 
         ORDER BY n.updatedAt DESC

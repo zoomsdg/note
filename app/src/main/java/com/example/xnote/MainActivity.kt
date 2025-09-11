@@ -158,8 +158,8 @@ class MainActivity : AppCompatActivity() {
             setBackgroundResource(R.drawable.category_chip_selector)
             setTextColor(if (isSelected) 
                 getColor(R.color.white) else getColor(R.color.primary_text))
-            setPadding(16, 6, 16, 6)  // 更小的padding，紧贴文字
-            textSize = 12f  // 稍微减小字体
+            setPadding(28, 12, 28, 12)  // 增大padding，让按钮更大更易点击
+            textSize = 14f  // 增大字体，提高可读性
             
             // 重要：移除默认的最小尺寸限制
             minWidth = 0
@@ -174,7 +174,7 @@ class MainActivity : AppCompatActivity() {
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
             )
-            params.setMargins(0, 0, 10, 0)  // 进一步减少间距
+            params.setMargins(16, 0, 0, 0)  // 增大按钮间距
             layoutParams = params
             
             setOnClickListener {

@@ -81,9 +81,9 @@ class MainViewModel(
             // 如果搜索为空，显示所有记事
             loadNotes()
         } else {
-            // 执行搜索
+            // 执行智能搜索
             searchJob = viewModelScope.launch {
-                repository.searchNoteSummaries(query).collect { searchResults ->
+                repository.smartSearchNoteSummaries(query).collect { searchResults ->
                     _notes.value = searchResults
                 }
             }
